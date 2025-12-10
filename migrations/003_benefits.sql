@@ -1,0 +1,20 @@
+-- benefits (sem DEFAULT para TEXT)
+CREATE TABLE IF NOT EXISTS benefits (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(150) NOT NULL,
+  partner VARCHAR(120) DEFAULT NULL,
+  type ENUM('coupon','link','service') NOT NULL DEFAULT 'coupon',
+  code VARCHAR(80) DEFAULT NULL,
+  link VARCHAR(255) DEFAULT NULL,
+  valid_until DATE DEFAULT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  description TEXT NULL,
+  image_url VARCHAR(255) DEFAULT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS benefit_plans (
+  benefit_id INT NOT NULL,
+  plan_id VARCHAR(50) NOT NULL,
+  PRIMARY KEY (benefit_id, plan_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: aviv_app
+    ports:
+      - "127.0.0.1:8765:8765"                 # host:container
+    volumes:
+      - ./:/var/www/app
+    depends_on:
+      - db
+    working_dir: /var/www/app
+    environment:
+      SMTP_HOST: "smtp.titan.email"
+      SMTP_PORT: "587"
+      SMTP_SECURE: "tls"            # "tls" (587) ou "ssl" (465)
+      SMTP_USER: "software@showdeimagem.com.br"
+      SMTP_PASS: "software_Show2024"
+      SMTP_FROM: "software@showdeimagem.com.br"
+      SMTP_FROM_NAME: "AVIV PLUS"
+      MAIL_STRICT_TLS: "0"          # relaxar em DEV; remova em PROD
+      MAIL_DEBUG: ""
+      TZ: "America/Sao_Paulo"
+    command: bash -lc "php -S 0.0.0.0:8765 -t public"
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: aviv_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: aviv
+      TZ: America/Sao_Paulo
+    ports:
+      - "3407:3306"                 # opcional; útil p/ acessar MySQL de fora
+    volumes:
+      - dbdata:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  dbdata:

@@ -1,0 +1,1 @@
+{"event":"PAYMENT_RECEIVED","payment":{"id":"pay_test","subscription":"sub_XXX","status":"RECEIVED","value":19,"dueDate":"2025-10-05"}}

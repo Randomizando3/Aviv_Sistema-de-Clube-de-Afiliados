@@ -1,0 +1,3 @@
+ALTER TABLE aviv.benefits ADD COLUMN partner VARCHAR(120) DEFAULT NULL;
+ALTER TABLE aviv.benefits ADD COLUMN image_url VARCHAR(255) DEFAULT NULL;
+ALTER TABLE aviv.benefits ADD COLUMN description TEXT NULL;

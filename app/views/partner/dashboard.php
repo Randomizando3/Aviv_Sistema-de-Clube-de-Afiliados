@@ -1,0 +1,761 @@
+<?php
+// Partner Dashboard — Nova campanha (coluna 1) + Minhas campanhas (coluna 2 com scroll),
+// compra de plano e pedidos.
+$u = Auth::user();
+if (!$u || ($u['role'] ?? 'member') !== 'partner') {
+  http_response_code(403);
+  echo "<p style='padding:16px'>Acesso negado.</p>";
+  return;
+}
+?>
+<section class="container" style="margin-top:18px">
+  <div class="glass-card">
+    <h1 class="sect-title">Parceiro • Campanhas de Publicidade</h1>
+    <p class="muted">Crie sua campanha (título, link e até 5 imagens) e ative com um plano de visualizações.</p>
+  </div>
+
+  <!-- FLASH -->
+  <div id="flash" style="margin-top:10px"></div>
+
+  <!-- ===== Board: Rascunho (E) + Minhas campanhas (D) ===== -->
+  <div class="glass-card" style="margin-top:12px">
+    <div class="board">
+      <!-- COLUNA ESQUERDA — Rascunho -->
+      <section class="draft">
+        <h2 class="sect-sub">Nova campanha</h2>
+        <span class="bdg bdg--muted">Rascunho</span>
+
+        <form id="camp-form-new" onsubmit="return false;" class="form-camp" style="margin-top:10px">
+          <label class="field span-all">
+            <span>Título*</span>
+            <input name="title" required placeholder="Ex.: Clínica Aviv — Check-up completo" />
+          </label>
+
+          <label class="field span-all">
+            <span>Link ao clicar</span>
+            <div class="input-row">
+              <input name="target_url" placeholder="https://seusite.com/pagina" />
+              <a class="ghost-link" id="test-link-new" href="#" target="_blank" rel="noopener">Testar</a>
+            </div>
+          </label>
+
+          <div class="subttl span-all">Imagens</div>
+
+          <div class="img-grid span-all">
+            <?php
+              $imgFields = [
+                'img_sky_1'   => 'Arranha-céu 1 (lateral)',
+                'img_sky_2'   => 'Arranha-céu 2 (lateral)',
+                'img_top_468' => 'Topo 468 px (largura)',
+                'img_square_1'=> 'Quadrado 1',
+                'img_square_2'=> 'Quadrado 2',
+              ];
+              foreach ($imgFields as $name => $label):
+            ?>
+            <div class="img-tile">
+              <label class="tile-label"><?=htmlspecialchars($label)?></label>
+              <input name="<?=$name?>" placeholder="URL da imagem" />
+              <div class="thumb"><img data-pv="<?=$name?>-new" alt="" hidden></div>
+            </div>
+            <?php endforeach; ?>
+          </div>
+
+          <div class="actions span-all">
+            <button id="btn-create-camp" class="btn">Criar campanha</button>
+            <button type="button" id="btn-reset-camp" class="btn btn--ghost">Limpar</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- COLUNA DIREITA — Lista com rolagem -->
+      <section class="mycamps">
+        <div class="mycamps-head">
+          <h2 class="sect-sub">Minhas campanhas</h2>
+          <small class="muted">até 3 cards visíveis (role para ver mais)</small>
+        </div>
+        <div class="camp-list-wrap">
+          <div id="camp-list" class="camp-list" role="list" aria-label="Campanhas do parceiro"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===== Comprar plano (combobox espessa) ===== -->
+  <div class="glass-card" style="margin-top:12px">
+    <h2 class="sect-sub">Comprar plano (ativar campanha)</h2>
+
+    <div class="buy-grid">
+      <div class="buy-left">
+        <div class="field span-all">
+          <span>Escolha a campanha</span>
+          <div id="camp-combo" class="combo combo--thick" data-single>
+            <button type="button" class="combo-btn" aria-expanded="false">
+              <span class="combo-label">Selecione uma campanha</span>
+              <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+            </button>
+            <div class="combo-menu"><div class="combo-list" id="camp-combo-list"></div></div>
+            <input type="hidden" id="buy-campaign" value="">
+          </div>
+        </div>
+
+        <!-- preview da campanha escolhida -->
+        <div id="camp-preview" class="mini-camp" hidden>
+          <div class="mini-head">
+            <h3 class="mini-title"></h3>
+            <div class="mini-meta"></div>
+          </div>
+          <div class="mini-gal"></div>
+        </div>
+      </div>
+
+      <div class="buy-right">
+        <p class="muted" style="margin:0 0 8px">Planos disponíveis</p>
+        <div id="plans" class="cards plans-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Meus pedidos ===== -->
+  <div class="glass-card" style="margin-top:12px">
+    <h2 class="sect-sub">Meus pedidos</h2>
+    <div id="orders" class="table-wrap"></div>
+  </div>
+</section>
+
+<script>
+(function(){
+  const $  = s => document.querySelector(s);
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+  function escapeAttr(s){ return escapeHtml(s).replace(/'/g,'&#39;'); }
+
+  // -------- modal flash (popup) --------
+  let _mfxTimer = null;
+  function flash(type, msg, persistMs = 6000){
+    // remove modal anterior (se houver)
+    document.querySelectorAll('.mfx-overlay').forEach(el=>el.remove());
+    if (_mfxTimer) { clearTimeout(_mfxTimer); _mfxTimer = null; }
+
+    const tMap = { ok:'Sucesso', warn:'Atenção', err:'Erro' };
+    const cls  = (type === 'ok') ? 'mfx--ok' : (type === 'warn') ? 'mfx--warn' : 'mfx--err';
+    const safeMsg = escapeHtml(msg || '');
+
+    const ov = document.createElement('div');
+    ov.className = 'mfx-overlay';
+    ov.setAttribute('role','dialog');
+    ov.setAttribute('aria-modal','true');
+    ov.innerHTML = `
+      <div class="mfx-box ${cls}" role="document">
+        <div class="mfx-head">
+          <span class="mfx-title">${tMap[type] || 'Aviso'}</span>
+          <button class="mfx-close" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <div class="mfx-body">${safeMsg}</div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+
+    // anima abrir
+    requestAnimationFrame(()=> ov.setAttribute('data-open',''));
+
+    // fechar
+    function close(){
+      ov.removeAttribute('data-open');
+      setTimeout(()=> ov.remove(), 150);
+      document.removeEventListener('keydown', onKey);
+      if (_mfxTimer) { clearTimeout(_mfxTimer); _mfxTimer = null; }
+    }
+    function onKey(e){ if (e.key === 'Escape') close(); }
+
+    ov.addEventListener('click', (e)=>{ if (e.target === ov) close(); });
+    ov.querySelector('.mfx-close')?.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+
+    if (persistMs > 0) _mfxTimer = setTimeout(close, persistMs);
+  }
+
+  // retorno do checkout
+  (function checkReturnParams(){
+    const usp = new URLSearchParams(location.search);
+    if (usp.get('paid') === '1') {
+      flash('ok','Seu pagamento foi identificado. O pedido será marcado como pago e a campanha ativada.');
+      usp.delete('paid'); history.replaceState({}, '', `${location.pathname}?${usp.toString()}`);
+    } else if (usp.get('canceled') === '1') {
+      flash('warn','Pagamento cancelado pelo usuário. Você pode tentar novamente em Meus pedidos.');
+      usp.delete('canceled'); history.replaceState({}, '', `${location.pathname}?${usp.toString()}`);
+    }
+  })();
+
+  // helpers
+  function badge(st){
+    const map = {
+      'active':          {t:'Ativa', cls:'bdg--ok'},
+      'exhausted':       {t:'Exaurida', cls:'bdg--muted'},
+      'pending_payment': {t:'Pendente', cls:'bdg--warn'},
+      'canceled':        {t:'Cancelada', cls:'bdg--err'},
+      'overdue':         {t:'Vencida', cls:'bdg--err'},
+      'refunded':        {t:'Estornada', cls:'bdg--muted'},
+      'inactive':        {t:'Inativa', cls:'bdg--muted'}
+    };
+    const it = map[st] || {t:(st||'-'), cls:'bdg--muted'};
+    return `<span class="bdg ${it.cls}">${it.t}</span>`;
+  }
+  function imagesOf(c){
+    return ['img_sky_1','img_sky_2','img_top_468','img_square_1','img_square_2']
+      .map(k=>({k, url:(c[k]||'').trim()})).filter(it=>it.url);
+  }
+
+  // -------- NOVA campanha (rascunho) --------
+  const Fnew = document.getElementById('camp-form-new');
+  function updateNewPreview(name){
+    const input = Fnew.querySelector(`input[name="${name}"]`);
+    const pv = Fnew.querySelector(`img[data-pv="${name}-new"]`);
+    if (!pv) return;
+    const url = (input?.value || '').trim();
+    if (url) { pv.src = url; pv.hidden = false; } else { pv.hidden = true; pv.removeAttribute('src'); }
+  }
+  ['img_sky_1','img_sky_2','img_top_468','img_square_1','img_square_2'].forEach(n=>{
+    const el = Fnew.querySelector(`input[name="${n}"]`);
+    if (el) el.addEventListener('input', () => updateNewPreview(n));
+  });
+  document.getElementById('test-link-new')?.addEventListener('click', (e)=>{
+    e.preventDefault();
+    const url = (Fnew.target_url.value||'').trim();
+    if (url) window.open(url, '_blank', 'noopener');
+  });
+
+  document.getElementById('btn-create-camp').onclick = async ()=>{
+    const fd = new FormData(Fnew);
+    if(!(fd.get('title')||'').trim()){ return flash('warn','Informe o título.'); }
+    try{
+      const r = await fetch('/?r=api/partner/ads/campaign/save',{method:'POST', body:fd});
+      let j; try { j = await r.json(); } catch(e){ return flash('err','Erro de resposta ao criar'); }
+      if(!j.ok){ return flash('err', j.error||'Falha ao criar'); }
+      flash('ok','Campanha criada!');
+      Fnew.reset();
+      ['img_sky_1','img_sky_2','img_top_468','img_square_1','img_square_2'].forEach(updateNewPreview);
+      await loadCampaigns(); await loadPlans();
+    }catch(e){ flash('err', e.message || 'Erro ao criar'); }
+  };
+  document.getElementById('btn-reset-camp').onclick = ()=>{ Fnew.reset(); ['img_sky_1','img_sky_2','img_top_468','img_square_1','img_square_2'].forEach(updateNewPreview); };
+
+  // -------- Lista de campanhas (coluna direita) --------
+  let CAMPS = [];
+  const listEl = document.getElementById('camp-list');
+
+  function renderCampCard(c){
+    const imgs = imagesOf(c);
+    return `
+      <article class="camp-card" data-id="${c.id}" role="listitem" aria-label="Campanha #${c.id}">
+        <header class="camp-card-head">
+          <div class="cch-left">
+            <h3 class="c-title">${escapeHtml(c.title||'-')}</h3>
+            <div class="c-meta">
+              ${badge(c.status||'inactive')}
+              ${c.target_url ? `<a class="chip-link" href="${escapeAttr(c.target_url)}" target="_blank" rel="noopener">Abrir link</a>` : ''}
+            </div>
+          </div>
+          <div class="cch-actions">
+            <button class="btn btn-sm" data-act="edit">Editar</button>
+          </div>
+        </header>
+
+        <div class="gal-mini">
+          ${
+            imgs.length
+              ? imgs.map(it => `
+                  <a href="${escapeAttr(it.url)}" target="_blank" rel="noopener" class="gm-it" title="${escapeHtml(it.k)}">
+                    <img src="${escapeAttr(it.url)}" alt="${escapeHtml(it.k)}">
+                    <span class="gm-tag">${escapeHtml(it.k.replace('img_','').replaceAll('_',' '))}</span>
+                  </a>
+                `).join('')
+              : `<div class="gm-ph">Sem imagens</div>`
+          }
+        </div>
+
+        <!-- Editor recolhido por padrão -->
+        <form class="camp-edit" data-editing="0" onsubmit="return false;">
+          <input type="hidden" name="id" value="${c.id}">
+          <label class="field">
+            <span>Título*</span>
+            <input name="title" value="${escapeAttr(c.title||'')}" required />
+          </label>
+          <label class="field">
+            <span>Link ao clicar</span>
+            <div class="input-row">
+              <input name="target_url" value="${escapeAttr(c.target_url||'')}" placeholder="https://..." />
+              ${c.target_url ? `<a class="ghost-link" href="${escapeAttr(c.target_url)}" target="_blank" rel="noopener">Testar</a>` : `<span class="ghost-link ghost-disabled">Testar</span>`}
+            </div>
+          </label>
+
+          <div class="img-grid">
+            ${['img_sky_1','img_sky_2','img_top_468','img_square_1','img_square_2'].map(k => `
+              <div class="img-tile">
+                <label class="tile-label">${escapeHtml(k.replace('img_','').replaceAll('_',' '))}</label>
+                <input name="${k}" value="${escapeAttr(c[k]||'')}" placeholder="URL da imagem" />
+                <div class="thumb"><img data-pv="${k}-${c.id}" src="${escapeAttr(c[k]||'')}" alt="" ${c[k]?'':'hidden'}></div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="actions">
+            <button class="btn" data-act="save">Salvar</button>
+            <button type="button" class="btn btn--ghost" data-act="cancel">Cancelar</button>
+          </div>
+        </form>
+      </article>
+    `;
+  }
+
+  async function loadCampaigns(){
+    listEl.innerHTML = `<div class="muted">Carregando…</div>`;
+    const r = await fetch('/?r=api/partner/ads/campaigns');
+    let j; try { j = await r.json(); } catch(e){ listEl.innerHTML = `<p class="muted">Erro ao carregar.</p>`; return; }
+    if(!j.ok){ listEl.innerHTML = `<p class="muted">${escapeHtml(j.error||'Falha ao carregar')}</p>`; return; }
+
+    CAMPS = j.data || [];
+    if(!CAMPS.length){
+      listEl.innerHTML = '<p class="muted">Você ainda não tem campanhas.</p>';
+    } else {
+      listEl.innerHTML = CAMPS.map(renderCampCard).join('');
+    }
+
+    // binds
+    listEl.querySelectorAll('[data-act="edit"]').forEach(btn=>{
+      btn.onclick = ()=>{
+        const card = btn.closest('.camp-card');
+        const form = card.querySelector('.camp-edit');
+        form.setAttribute('data-editing','1');
+        card.scrollIntoView({behavior:'smooth', block:'nearest'});
+      };
+    });
+    listEl.querySelectorAll('[data-act="cancel"]').forEach(btn=>{
+      btn.onclick = (e)=> e.target.closest('.camp-edit').setAttribute('data-editing','0');
+    });
+    listEl.querySelectorAll('[data-act="save"]').forEach(btn=>{
+      btn.onclick = async (e)=>{
+        const form = e.target.closest('.camp-edit');
+        const fd = new FormData(form);
+        if(!(fd.get('title')||'').trim()){ return flash('warn','Informe o título.'); }
+        try{
+          const r = await fetch('/?r=api/partner/ads/campaign/save',{method:'POST', body:fd});
+          let j; try { j = await r.json(); } catch(e){ return flash('err','Erro de resposta ao salvar'); }
+          if(!j.ok){ return flash('err', j.error||'Falha ao salvar'); }
+          flash('ok','Campanha salva!');
+          await loadCampaigns(); await loadPlans();
+        }catch(ex){ flash('err', ex.message || 'Erro ao salvar'); }
+      };
+    });
+    listEl.querySelectorAll('.camp-edit input[name^="img_"]').forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        const id = inp.closest('.camp-card')?.dataset.id;
+        const pv = listEl.querySelector(`img[data-pv="${inp.name}-${id}"]`);
+        const url = inp.value.trim();
+        if (pv){ if(url){ pv.src=url; pv.hidden=false; } else { pv.hidden=true; pv.removeAttribute('src'); } }
+      });
+    });
+
+    // combobox compra + preview
+    renderCampaignCombo(CAMPS);
+    renderBuyPreview(document.getElementById('buy-campaign').value);
+  }
+
+  // -------- combobox de campanhas (compra) --------
+  function renderCampaignCombo(rows){
+    const list = document.getElementById('camp-combo-list');
+    const label = document.querySelector('#camp-combo .combo-label');
+    const hidden = document.getElementById('buy-campaign');
+
+    if(!rows.length){
+      list.innerHTML = `<div class="combo-empty">Crie uma campanha para comprar um plano.</div>`;
+      label.textContent = 'Nenhuma campanha';
+      hidden.value = '';
+      document.getElementById('camp-preview').hidden = true;
+      return;
+    }
+    const group = 'campSel_' + Math.random().toString(36).slice(2);
+    list.innerHTML = rows.map(c => `
+      <label class="combo-opt">
+        <input type="radio" name="${group}" value="${c.id}">
+        <span><strong>${escapeHtml(c.title||'-')}</strong> · <em>${escapeHtml(c.status||'-')}</em></span>
+      </label>
+    `).join('');
+
+    let selId = hidden.value || String(rows[0].id);
+    const first = list.querySelector(`input[value="${CSS.escape(selId)}"]`) || list.querySelector('input[type="radio"]');
+    if (first){ first.checked = true; selId = first.value; }
+
+    const c = rows.find(x=> String(x.id)===String(selId));
+    label.textContent = c ? c.title : 'Selecione uma campanha';
+    hidden.value = selId;
+  }
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.combo-btn');
+    if (btn){
+      const combo = btn.closest('.combo');
+      const open = combo.hasAttribute('data-open');
+      document.querySelectorAll('.combo[data-open]')?.forEach(c=> c.removeAttribute('data-open'));
+      if (!open){ combo.setAttribute('data-open',''); btn.setAttribute('aria-expanded','true'); }
+      else { combo.removeAttribute('data-open'); btn.setAttribute('aria-expanded','false'); }
+      return;
+    }
+    const opt = e.target.closest('.combo .combo-opt');
+    if (opt){
+      const radio = opt.querySelector('input[type="radio"]');
+      if (radio){
+        radio.checked = true;
+        const combo = opt.closest('.combo');
+        combo.querySelector('.combo-label').textContent = opt.querySelector('span strong')?.textContent || 'Selecionado';
+        const hidden = combo.querySelector('input[type="hidden"]');
+        hidden.value = radio.value;
+        combo.removeAttribute('data-open');
+        combo.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
+        renderBuyPreview(hidden.value);
+      }
+      return;
+    }
+    if (!e.target.closest('.combo')) {
+      document.querySelectorAll('.combo[data-open]')?.forEach(c=> c.removeAttribute('data-open'));
+      document.querySelectorAll('.combo .combo-btn')?.forEach(b=> b.setAttribute('aria-expanded','false'));
+    }
+  });
+
+  // preview da campanha escolhida
+  function renderBuyPreview(campId){
+    const wrap = document.getElementById('camp-preview');
+    const title = wrap.querySelector('.mini-title');
+    const meta  = wrap.querySelector('.mini-meta');
+    const gal   = wrap.querySelector('.mini-gal');
+    const c = CAMPS.find(x => String(x.id) === String(campId));
+    if (!c){ wrap.hidden = true; title.textContent=''; meta.innerHTML=''; gal.innerHTML=''; return; }
+    wrap.hidden = false;
+    title.textContent = c.title || '—';
+    meta.innerHTML = `${badge(c.status||'inactive')} ${c.target_url ? `<a class="chip-link" href="${escapeAttr(c.target_url)}" target="_blank" rel="noopener">Abrir link</a>` : ''}`;
+    const imgs = imagesOf(c);
+    gal.innerHTML = imgs.length
+      ? imgs.map(it=>`<img class="mini-gal-it" src="${escapeAttr(it.url)}" alt="${escapeHtml(it.k)}">`).join('')
+      : '<div class="mini-gal-ph">Sem imagens</div>';
+  }
+
+  // -------- planos --------
+  async function loadPlans(){
+    const area = document.getElementById('plans');
+    const r = await fetch('/?r=api/partner/ads/plans');
+    let j; try { j = await r.json(); } catch(e){ area.innerHTML='<p class="muted">Erro de resposta.</p>'; return; }
+    if(!j.ok){ area.innerHTML='<p class="muted">Falha ao carregar planos.</p>'; return; }
+    const rows = j.data || [];
+    if(!rows.length){ area.innerHTML = '<p class="muted">Nenhum plano ativo no momento.</p>'; return; }
+
+    area.innerHTML = rows.map(p => {
+      const quota = Number(p.view_quota||0);
+      const price = Number(p.price||0);
+      const cpm   = quota>0 ? (price / quota) * 1000 : 0;
+      return `
+        <article class="plan-card modern" data-plan="${p.id}">
+          <header class="p-head"><h3 class="p-name">${escapeHtml(p.name)}</h3></header>
+          <div class="p-body">
+            <div class="p-row"><span class="lbl">Views incluídas</span><span class="val">${quota.toLocaleString('pt-BR')}</span></div>
+            <div class="p-row"><span class="lbl">Preço</span><span class="val strong">R$ ${price.toFixed(2)}</span></div>
+            <div class="p-row sm"><span class="lbl">CPM aprox.</span><span class="val">R$ ${cpm.toFixed(2)}</span></div>
+          </div>
+          <footer class="p-actions"><button class="btn btn-buy" data-buy="${p.id}">Comprar</button></footer>
+        </article>
+      `;
+    }).join('');
+
+    area.querySelectorAll('[data-buy]').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const campaignId = document.getElementById('buy-campaign').value;
+        if(!campaignId){ return flash('warn','Selecione uma campanha antes de comprar.'); }
+        const card = btn.closest('.plan-card');
+        lockCard(card, true, 'Criando pedido...');
+        try{
+          const fd1 = new FormData(); fd1.set('plan_id', btn.dataset.buy); fd1.set('campaign_id', campaignId);
+          const r1  = await fetch('/?r=api/partner/ads/order',{method:'POST', body:fd1});
+          const j1  = await r1.json();
+          if(!j1.ok){ throw new Error(j1.error||'Falha ao criar pedido'); }
+
+          const fd2 = new FormData(); fd2.set('order_id', j1.data.order_id);
+          const r2  = await fetch('/?r=api/partner/ads/pay',{method:'POST', body:fd2});
+          const j2  = await r2.json();
+          if(!j2.ok){ throw new Error(j2.error||'Falha ao iniciar pagamento'); }
+          const url = j2.data && (j2.data.openUrl || j2.data.bankSlipUrl || j2.data.invoiceUrl || j2.data.checkout_url);
+          if(url){ window.open(url, '_blank', 'noopener'); }
+          flash('ok','Pedido criado! Se o boleto/recibo não abriu, use o botão Pagar em "Meus pedidos".', 8000);
+          loadOrders();
+        }catch(e){ flash('err', e.message || 'Erro ao processar compra'); }
+        finally{ lockCard(card, false); }
+      };
+    });
+  }
+  function lockCard(card, on, text='Processando...'){
+    if(!card) return;
+    let ov = card.querySelector('.p-overlay');
+    if(on){
+      if(!ov){
+        ov = document.createElement('div');
+        ov.className='p-overlay';
+        ov.innerHTML = `<div class="spinner"></div><div class="p-olbl">${text}</div>`;
+        card.appendChild(ov);
+      } else {
+        const lbl = ov.querySelector('.p-olbl'); if (lbl) lbl.textContent = text;
+      }
+    } else { ov?.remove(); }
+  }
+
+  // -------- pedidos --------
+  async function payOrder(orderId, el){
+    if(!orderId) return;
+    if(el){ el.disabled = true; el.textContent = 'Gerando...'; }
+    try{
+      const fd = new FormData(); fd.set('order_id', orderId);
+      const r  = await fetch('/?r=api/partner/ads/pay',{method:'POST', body:fd});
+      const j  = await r.json();
+      if(!j.ok){ throw new Error(j.error||'Falha ao iniciar pagamento'); }
+      const url = j.data && (j.data.openUrl || j.data.bankSlipUrl || j.data.invoiceUrl || j.data.checkout_url);
+      if(url){ window.open(url, '_blank', 'noopener'); }
+      flash('ok','Pagamento iniciado. Se já pagou, clique em “Atualizar status” em alguns minutos.');
+      loadOrders();
+    }catch(e){ flash('err', e.message || 'Erro ao pagar pedido'); }
+    finally{ if(el){ el.disabled = false; el.textContent = 'Pagar'; }
+    }
+  }
+  async function reconcileOrder(orderId, el){
+    if(!orderId) return;
+    if(el){ el.disabled = true; el.textContent = 'Atualizando...'; }
+    try{
+      const fd = new FormData(); fd.set('order_id', orderId);
+      const r  = await fetch('/?r=api/partner/ads/reconcile',{method:'POST', body:fd});
+      const j  = await r.json();
+      if(!j.ok){ throw new Error(j.error||'Falha na conciliação'); }
+
+      if (j.data && j.data.status === 'active')      flash('ok','Seu pagamento foi identificado e o anúncio foi ativado.');
+      else if (j.data && j.data.status === 'pending_payment') flash('warn','Pagamento ainda não identificado. Tente novamente em instantes.');
+      else                                           flash('warn','Status atualizado: ' + (j.data?.status || 'indisponível'));
+      loadOrders();
+    }catch(e){ flash('err', e.message || 'Erro ao atualizar status'); }
+    finally{ if(el){ el.disabled = false; el.textContent = 'Atualizar status'; } }
+  }
+  async function loadOrders(){
+    const area = document.getElementById('orders');
+    const r = await fetch('/?r=api/partner/ads/my');
+    let j; try { j = await r.json(); } catch(e){ area.innerHTML='<p class="muted">Erro de resposta.</p>'; return; }
+    if(!j.ok){ area.innerHTML='<p class="muted">Falha ao carregar pedidos.</p>'; return; }
+    const rows = j.data || [];
+
+    if(!rows.length){ area.innerHTML = '<p class="muted">Você ainda não tem pedidos.</p>'; return; }
+
+    let html = `<table class="tbl"><thead><tr>
+      <th>ID</th><th>Campanha</th><th>Plano</th><th>Status</th><th>Quota</th><th>Usadas</th><th>Valor</th><th>Criado em</th><th>Ação</th>
+    </tr></thead><tbody>`;
+    rows.forEach(o=>{
+      const canPay   = (o.status==='pending_payment' || o.status==='canceled') && Number(o.amount||0) > 0;
+      const canRecon = (o.status==='pending_payment');
+      html += `<tr>
+        <td>${o.id}</td>
+        <td>${escapeHtml(o.campaign_title||'-')} ${o.campaign_status?`<small class="muted">(${escapeHtml(o.campaign_status)})</small>`:''}</td>
+        <td>${escapeHtml(o.plan_name)}</td>
+        <td>${badge(o.status)}</td>
+        <td>${o.quota_total}</td>
+        <td>${o.quota_used}</td>
+        <td>R$ ${Number(o.amount||0).toFixed(2)}</td>
+        <td>${(o.created_at||'').replace('T',' ').replace('Z','')}</td>
+        <td>${canPay ? `<button class="btn btn-sm" data-pay="${o.id}">Pagar</button>` : ''} ${canRecon ? `<button class="btn btn-sm btn--ghost" data-recon="${o.id}">Atualizar status</button>` : '—'}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    area.innerHTML = html;
+
+    area.querySelectorAll('[data-pay]').forEach(btn=> btn.onclick = ()=> payOrder(btn.dataset.pay, btn));
+    area.querySelectorAll('[data-recon]').forEach(btn=> btn.onclick = ()=> reconcileOrder(btn.dataset.recon, btn));
+  }
+
+  (async function(){
+    await loadCampaigns();
+    await loadPlans();
+    await loadOrders();
+  })();
+})();
+</script>
+
+<style>
+:root{
+  --combo-bg: #281B3E;
+  --combo-bg-2: #201431;
+  --combo-bd: rgba(186,126,255,.35);
+  --txt: #eaf3ff;
+}
+
+/* board com duas colunas: esquerda flex, direita fixa e rolável */
+.board{display:grid;grid-template-columns:1fr 420px;gap:16px;align-items:start}
+@media (max-width:1100px){ .board{grid-template-columns:1fr} }
+
+.draft .sect-sub{margin:0}
+.mycamps-head{display:flex;align-items:baseline;gap:8px;justify-content:space-between}
+
+.camp-list-wrap{
+  height: 780px;           /* ~3 cards visíveis */
+  overflow:auto;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;
+  padding:10px;
+  background:rgba(255,255,255,.04);
+}
+.camp-list{display:grid;gap:12px}
+
+/* card compacto da lista (direita) */
+.camp-card{
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;
+  background:rgba(255,255,255,.07);
+  padding:10px;color:#fff;
+  display:flex;flex-direction:column;gap:10px;
+  min-height: 230px;      /* ajuda a manter 3 por tela */
+}
+.camp-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.c-title{margin:0 0 4px;font-weight:800}
+.c-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cch-actions{display:flex;gap:8px}
+
+/* mini galeria horizontal */
+.gal-mini{display:grid;grid-template-columns:repeat(5, minmax(0,1fr));gap:8px}
+.gm-it{position:relative;border:1px solid rgba(255,255,255,.15);border-radius:10px;overflow:hidden;background:rgba(255,255,255,.05);display:block}
+.gm-it img{width:100%;height:74px;object-fit:cover;display:block}
+.gm-tag{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.5);color:#fff;border-radius:6px;padding:2px 6px;font-size:.7rem}
+.gm-ph{border:1px dashed rgba(255,255,255,.25);border-radius:10px;padding:10px;text-align:center;color:#cfe1ff}
+
+/* editor (dentro do card) */
+.camp-edit{display:none;border-top:1px dashed rgba(255,255,255,.18);padding-top:8px}
+.camp-edit[data-editing="1"]{display:block}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 1em;
+}
+.field span{font-size:.9rem;color:#cfe1ff;opacity:.95}
+.field input{box-sizing:border-box;width:100%;min-width:0;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.20);background:rgba(255,255,255,.08);color:var(--txt);outline:none}
+.input-row{display:flex;gap:8px;align-items:center}
+.ghost-link{font-size:.9rem;border:1px solid rgba(255,255,255,.18);padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);text-decoration:none;color:white;font-weight: bold;}
+.ghost-link.ghost-disabled{opacity:.5;pointer-events:none}
+.subttl {
+    font-weight: 800;
+    color: #fff;
+    opacity: .95;
+    margin-bottom: 1em;
+    margin-top: 2em;
+}
+
+.img-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.img-tile{border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.06);padding:10px;display:flex;flex-direction:column;gap:8px}
+.tile-label{font-size:.86rem;color:#cfe1ff;opacity:.95}
+.thumb{border:1px solid rgba(255,255,255,.15);border-radius:10px;background:rgba(255,255,255,.06);height:110px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.thumb img{max-width:100%;max-height:100%}
+
+/* combobox espessa */
+.combo{position:relative}
+.combo--thick .combo-btn{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:12px 14px;border-radius:12px;border:1px solid var(--combo-bd);background:var(--combo-bg);color:#f1e9ff;cursor:pointer;
+  font-size:1rem;font-weight:700
+}
+.combo-btn:focus{outline:2px solid rgba(186,126,255,.55);outline-offset:2px}
+.combo-menu{position:absolute;top:calc(100% + 6px);left:0;right:0;display:none;background:var(--combo-bg-2);color:#f1e9ff;border:1px solid var(--combo-bd);border-radius:12px;padding:8px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.combo[data-open] .combo-menu{display:block}
+.combo-list{max-height:240px;overflow:auto;display:grid;gap:6px;padding-right:4px}
+.combo-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);cursor:pointer}
+.combo-opt input{accent-color:#b57bff}
+.combo-empty{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.20)}
+
+/* preview campanha selecionada */
+.mini-camp{border:1px solid rgba(255,255,255,.15);border-radius:12px;background:rgba(255,255,255,.06);padding:10px}
+.mini-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mini-title{margin:0;font-weight:800;color:#fff}
+.mini-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mini-gal{margin-top:8px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mini-gal-it{width:100%;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15)}
+.mini-gal-ph{border:1px dashed rgba(255,255,255,.25);border-radius:8px;padding:8px;color:#cfe1ff;text-align:center}
+
+/* compra de planos */
+.buy-grid{display:grid;grid-template-columns:360px 1fr;gap:16px}
+.buy-left{display:flex;flex-direction:column;gap:10px}
+.buy-right{min-width:0}
+@media (max-width:980px){ .buy-grid{grid-template-columns:1fr} }
+
+.plans-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;padding: 0px;}
+.plan-card.modern{position:relative;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.08);padding:12px;color:#fff}
+.p-head{display:flex;align-items:center;justify-content:space-between}
+.p-name{margin:0;font-weight:800}
+.p-body{margin-top:8px;display:grid;gap:6px}
+.p-row{display:flex;align-items:center;justify-content:space-between}
+.p-row.sm{opacity:.9;font-size:.9rem}
+.p-row .lbl{opacity:.9}
+.p-row .val.strong{font-weight:800}
+.p-actions{margin-top:10px;display:flex;justify-content:flex-end}
+.btn-buy{background:#fff;border:1px solid rgba(255,255,255,.18);padding:8px 12px;border-radius:10px;cursor:pointer}
+.p-overlay{position:absolute;inset:0;background:rgba(16,20,30,.45);backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;border-radius:14px}
+.spinner{width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.35);border-top-color:transparent;animation:sp .9s linear infinite}
+.p-olbl{color:#fff;font-weight:700}
+@keyframes sp{to{transform:rotate(1turn)}}
+
+/* pedidos */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th,.tbl td{border-bottom:1px solid #e6edf5;padding:8px;text-align:left}
+
+/* badges + flash + botões */
+.bdg{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.75rem;line-height:1;font-weight:700}
+.bdg--ok{background:#e6f7ec;color:#0f7a2f;border:1px solid #b8ebc6}
+.bdg--warn{background:#fff7e6;color:#8a5a00;border:1px solid #ffe1a8}
+.bdg--err{background:#ffecec;color:#a10000;border:1px solid #ffc9c9}
+.bdg--muted{background:#eef3f8;color:#3b556e;border:1px solid #d6e0ea}
+
+.flash{padding:10px 12px;border-radius:10px;border:1px solid transparent;margin-bottom:8px}
+.flash--ok{background:#e6f7ec;border-color:#b8ebc6;color:#0f7a2f}
+.flash--warn{background:#fff7e6;border-color:#ffe1a8;color:#8a5a00}
+.flash--err{background:#ffecec;border-color:#ffc9c9;color:#a10000}
+
+.btn--ghost{background:transparent;border:1px solid #d0d8e0} /* sem color */
+.btn.btn-sm{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.10);color:#fff;cursor:pointer}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start;margin-top: 1em;}
+
+/* ===== Modal flash (popup) ===== */
+.mfx-overlay{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.55);
+  display:grid; place-items:center;
+  z-index:9999;
+  opacity:0; transition:opacity .15s ease;
+}
+.mfx-overlay[data-open]{ opacity:1; }
+
+.mfx-box{
+  width:min(560px, 92vw);
+  background:var(--combo-bg);        /* roxo da view */
+  color:#f1e9ff;
+  border:1px solid var(--combo-bd);  /* borda roxa translúcida já usada */
+  border-radius:14px;
+  box-shadow:0 12px 40px rgba(0,0,0,.45);
+  transform:scale(.95); transition:transform .15s ease;
+}
+.mfx-overlay[data-open] .mfx-box{ transform:scale(1); }
+
+.mfx-head{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.12);
+}
+.mfx-title{ margin:0; font-weight:800; }
+
+.mfx-close{
+  appearance:none; border:0; background:transparent;
+  color:#f1e9ff; font-size:22px; line-height:1; cursor:pointer;
+  padding:6px; border-radius:8px;
+}
+.mfx-close:hover{ background:rgba(255,255,255,.08); }
+
+.mfx-body{ padding:14px; }
+
+/* leves acentos por tipo (sem fugir da paleta) */
+.mfx--ok{   box-shadow:inset 0 0 0 3px rgba(30,171,95,.35); }
+.mfx--warn{ box-shadow:inset 0 0 0 3px rgba(255,193,7,.35); }
+.mfx--err{  box-shadow:inset 0 0 0 3px rgba(220,53,69,.35); }
+</style>

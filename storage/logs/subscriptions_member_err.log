@@ -1,0 +1,10 @@
+2025-08-26T19:56:58+00:00 [create] Asaas HTTP 400: É obrigatório preencher User-Agent no cabeçalho da requisição
+2025-08-26T20:04:49+00:00 [create] Asaas HTTP 400: {"errors":[{"code":"invalid_mobilePhone","description":"O celular informado é inválido."}]}
+2025-08-26T20:05:24+00:00 [create] Asaas HTTP 400: {"errors":[{"code":"invalid_billingType","description":"A forma de pagamento não é permitida para assinaturas."}]}
+2025-08-26T20:13:02+00:00 [create] SQLSTATE[23000]: Integrity constraint violation: 1452 Cannot add or update a child row: a foreign key constraint fails (`aviv`.`subscriptions`, CONSTRAINT `fk_sub_plan` FOREIGN KEY (`plan_id`) REFERENCES `plans` (`id`))
+2025-08-26T20:52:14+00:00 [create] SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ')->fetchAll(PDO::FETCH_COLUMN)' at line 3
+2025-08-26T20:52:21+00:00 [create] SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ')->fetchAll(PDO::FETCH_COLUMN)' at line 3
+2025-08-26T20:52:27+00:00 [create] SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ')->fetchAll(PDO::FETCH_COLUMN)' at line 3
+2025-08-26T20:58:00+00:00 [create] Asaas HTTP 400: {"errors":[{"code":"invalid_email","description":"O email informado é inválido."}]}
+2025-08-26T20:58:11+00:00 [create] Asaas HTTP 400: {"errors":[{"code":"invalid_email","description":"O email informado é inválido."}]}
+2025-08-26T20:58:17+00:00 [create] Asaas HTTP 400: {"errors":[{"code":"invalid_email","description":"O email informado é inválido."}]}

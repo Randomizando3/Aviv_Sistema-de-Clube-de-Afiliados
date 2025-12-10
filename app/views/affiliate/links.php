@@ -17,235 +17,380 @@ $me   = \Auth::user();
 $code = isset($code) && is_string($code) && $code !== '' ? $code : ($me ? Affiliate::getOrCreateCode((int)$me['id']) : '');
 $link = $code ? ($BASE . '/?ref=' . rawurlencode($code)) : ($BASE . '/');
 ?>
-<section class="container admin affiliate-links" style="margin-top:18px">
-  <section class="admin-main">
 
-    <!-- Link geral -->
-    <div class="glass-card" style="padding:16px 18px">
-      <h1 class="sect-title" style="margin:0">Afiliados • Meus links</h1>
-      <p class="muted" style="margin:6px 0 0">Use seu link abaixo ou gere uma arte personalizada.</p>
-    </div>
+<section class="affiliate-links-page">
+  <div class="affiliate-links-inner container">
+    <section class="admin-main">
 
-    <div class="glass-card" style="margin-top:12px">
-      <h2 class="sect-sub" style="margin-bottom:8px">Link geral</h2>
-      <div class="ref-row">
-        <label class="ref-label">Código</label>
-        <div class="ref-input">
-          <input id="aff-code" value="<?= htmlspecialchars($code) ?>" readonly>
-          <button class="btn btn-sm" data-copy="#aff-code">Copiar</button>
+      <!-- Link geral -->
+      <div class="glass-card">
+        <h1 class="sect-title" style="margin:0">Afiliados • Meus links</h1>
+        <p class="muted" style="margin:6px 0 0">
+          Use seu link abaixo ou gere uma arte personalizada.
+        </p>
+      </div>
+
+      <div class="glass-card">
+        <h2 class="sect-sub" style="margin-bottom:8px">Link geral</h2>
+
+        <div class="ref-row">
+          <label class="ref-label">Código</label>
+          <div class="ref-input">
+            <input id="aff-code" value="<?= htmlspecialchars($code) ?>" readonly>
+            <button class="btn btn-sm" data-copy="#aff-code" type="button">Copiar</button>
+          </div>
+        </div>
+
+        <div class="ref-row" style="margin-top:10px">
+          <label class="ref-label">Link</label>
+          <div class="ref-input">
+            <input id="aff-link" value="<?= htmlspecialchars($link) ?>" readonly>
+            <button class="btn btn-sm" data-copy="#aff-link" type="button">Copiar</button>
+            <a class="btn btn-sm btn--ghost" target="_blank" rel="noopener" href="<?= htmlspecialchars($link) ?>">Abrir</a>
+          </div>
         </div>
       </div>
-      <div class="ref-row" style="margin-top:10px">
-        <label class="ref-label">Link</label>
-        <div class="ref-input">
-          <input id="aff-link" value="<?= htmlspecialchars($link) ?>" readonly>
-          <button class="btn btn-sm" data-copy="#aff-link">Copiar</button>
-          <a class="btn btn-sm btn--ghost" target="_blank" rel="noopener" href="<?= htmlspecialchars($link) ?>">Abrir</a>
-        </div>
-      </div>
-    </div>
 
-    <!-- EDITOR 2/3 • PREVIEW 1/3 -->
-    <div class="editor-grid" style="margin-top:12px">
-      <!-- CONTROLES (2/3) -->
-      <div class="glass-card editor-controls">
-        <div class="tabs">
-          <button class="tab-btn current" data-tab="size">Fundo & Tamanho</button>
-          <button class="tab-btn" data-tab="text">Texto</button>
-          <button class="tab-btn" data-tab="sec">Texto Secundário</button>
-          <button class="tab-btn" data-tab="logo">Logo</button>
-          <button class="tab-btn" data-tab="export">Exportar</button>
-        </div>
+      <!-- EDITOR 2/3 • PREVIEW 1/3 -->
+      <div class="editor-grid">
+        <!-- CONTROLES (2/3) -->
+        <div class="glass-card editor-controls">
+          <div class="tabs">
+            <button class="tab-btn current" data-tab="size" type="button">Fundo &amp; Tamanho</button>
+            <button class="tab-btn" data-tab="text" type="button">Texto</button>
+            <button class="tab-btn" data-tab="sec" type="button">Texto Secundário</button>
+            <button class="tab-btn" data-tab="logo" type="button">Logo</button>
+            <button class="tab-btn" data-tab="export" type="button">Exportar</button>
+          </div>
 
-        <!-- Painel: Fundo & Tamanho -->
-        <div class="tab-panel" data-panel="size" style="display:block">
-          <div class="group">
-            <div class="group-title">Tamanho</div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Largura</label><input id="w" class="field" type="number" min="100" max="6000" step="10" value="1080"></div>
-              <div class="input-wrap"><label class="ref-label">Altura</label><input id="h" class="field" type="number" min="100" max="6000" step="10" value="1080"></div>
-              <div class="input-wrap">
-                <label class="ref-label">Escala PNG</label>
-                <div class="select-wrap">
-                  <select id="scale" class="field select">
-                    <option value="1">1×</option>
-                    <option value="2" selected>2×</option>
-                    <option value="3">3×</option>
-                  </select>
+          <!-- Painel: Fundo & Tamanho -->
+          <div class="tab-panel" data-panel="size" style="display:block">
+            <div class="group">
+              <div class="group-title">Tamanho</div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Largura</label>
+                  <input id="w" class="field" type="number" min="100" max="6000" step="10" value="1080">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Altura</label>
+                  <input id="h" class="field" type="number" min="100" max="6000" step="10" value="1080">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Escala PNG</label>
+                  <div class="select-wrap">
+                    <select id="scale" class="field select">
+                      <option value="1">1×</option>
+                      <option value="2" selected>2×</option>
+                      <option value="3">3×</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="actions" style="margin-top:8px">
-              <button id="applyWH" class="btn btn-sm" type="button">Aplicar tamanho</button>
-              <button id="resetPos" class="btn btn-sm btn--ghost" type="button">Centralizar elementos</button>
-            </div>
-          </div>
-
-          <div class="group">
-            <div class="group-title">Fundo</div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Cor 1</label><input id="bg1" class="field" type="color" value="#0e1f33"></div>
-              <div class="input-wrap"><label class="ref-label">Cor 2</label><input id="bg2" class="field" type="color" value="#0a1a2b"></div>
-              <div class="input-wrap"><label class="ref-label">Gradiente</label><label class="switch"><input id="useGrad" type="checkbox" checked><span></span></label></div>
-            </div>
-            <div class="row-3" style="margin-top:6px">
-              <div class="input-wrap"><label class="ref-label">Raio borda</label><input id="radius" class="field" type="range" min="0" max="160" value="28"></div>
-              <div class="input-wrap"><label class="ref-label">Cartão interno</label><label class="switch"><input id="useCard" type="checkbox" checked><span></span></label></div>
-              <div class="input-wrap"><label class="ref-label">Opacidade cartão</label><input id="cardAlpha" class="field" type="range" min="0" max="100" value="8"></div>
-            </div>
-            <div class="row-3" style="margin-top:6px">
-              <div class="input-wrap"><label class="ref-label">Mostrar grade</label><label class="switch"><input id="showGrid" type="checkbox"><span></span></label></div>
-              <div class="input-wrap"><label class="ref-label">Área segura</label><label class="switch"><input id="safeArea" type="checkbox" checked><span></span></label></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Painel: Texto (primário) -->
-        <div class="tab-panel" data-panel="text" style="display:none">
-          <div class="group">
-            <div class="group-title">Texto principal</div>
-            <div class="input-wrap"><label class="ref-label">Conteúdo</label><input id="txt" class="field" type="text" value="Benefícios, cupons e muito mais"></div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Tamanho</label><input id="txtSize" class="field" type="range" min="10" max="300" value="96"></div>
-              <div class="input-wrap"><label class="ref-label">Largura máx. (%)</label><input id="txtMax" class="field" type="range" min="30" max="95" value="80"></div>
-              <div class="input-wrap">
-                <label class="ref-label">Alinhamento</label>
-                <div class="select-wrap">
-                  <select id="align" class="field select">
-                    <option value="left">Esquerda</option>
-                    <option value="center" selected>Centro</option>
-                    <option value="right">Direita</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Peso</label><div class="select-wrap"><select id="weight" class="field select"><option>600</option><option selected>800</option><option>900</option></select></div></div>
-              <div class="input-wrap"><label class="ref-label">Cor</label><input id="txtColor" class="field" type="color" value="#ffffff"></div>
-              <div class="input-wrap"><label class="ref-label">Sombra</label><label class="switch"><input id="shadow" type="checkbox" checked><span></span></label></div>
-            </div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Blur</label><input id="shBlur" class="field" type="range" min="0" max="50" value="16"></div>
-              <div class="input-wrap"><label class="ref-label">Opacidade</label><input id="shAlpha" class="field" type="range" min="0" max="100" value="30"></div>
-            </div>
-            <div class="help small">Arraste no canvas (agora livre em X e Y). Segure <strong>Shift</strong> para travar automaticamente no eixo do movimento.</div>
-          </div>
-        </div>
-
-        <!-- Painel: Texto Secundário -->
-        <div class="tab-panel" data-panel="sec" style="display:none">
-          <div class="group">
-            <div class="group-title">Texto secundário</div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Ativar</label><label class="switch"><input id="secOn" type="checkbox"><span></span></label></div>
-              <div class="input-wrap"><label class="ref-label">Cor</label><input id="secColor" class="field" type="color" value="#e3efff"></div>
-              <div class="input-wrap"><label class="ref-label">Peso</label><div class="select-wrap"><select id="secWeight" class="field select"><option>400</option><option selected>600</option><option>700</option></select></div></div>
-            </div>
-            <div class="input-wrap" style="margin-top:6px"><label class="ref-label">Conteúdo</label><input id="secTxt" class="field" type="text" placeholder="Escreva aqui…"></div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Tamanho</label><input id="secSize" class="field" type="range" min="8" max="200" value="48"></div>
-              <div class="input-wrap"><label class="ref-label">Largura máx. (%)</label><input id="secMax" class="field" type="range" min="30" max="95" value="80"></div>
-              <div class="input-wrap">
-                <label class="ref-label">Alinhamento</label>
-                <div class="select-wrap"><select id="secAlign" class="field select"><option value="left">Esquerda</option><option value="center" selected>Centro</option><option value="right">Direita</option></select></div>
-              </div>
-            </div>
-            <div class="row-3">
-              <div class="input-wrap"><label class="ref-label">Sombra</label><label class="switch"><input id="secShadow" type="checkbox" checked><span></span></label></div>
-              <div class="input-wrap"><label class="ref-label">Blur</label><input id="secBlur" class="field" type="range" min="0" max="40" value="10"></div>
-              <div class="input-wrap"><label class="ref-label">Opacidade</label><input id="secAlpha" class="field" type="range" min="0" max="100" value="25"></div>
-            </div>
-            <div class="help small">Arraste o texto secundário no canvas para posicionar.</div>
-          </div>
-        </div>
-
-        <!-- Painel: Logo -->
-        <div class="tab-panel" data-panel="logo" style="display:none">
-          <div class="group">
-            <div class="group-title">Logo</div>
-
-            <div class="row-3">
-              <div class="input-wrap">
-                <label class="ref-label">Exibir</label>
-                <label class="switch"><input id="logoOn" type="checkbox" checked><span></span></label>
-              </div>
-              <div class="input-wrap"><label class="ref-label">Tamanho (%)</label><input id="logoScale" class="field" type="range" min="10" max="200" value="60"></div>
-              <div class="input-wrap"><label class="ref-label">Opacidade</label><input id="logoAlpha" class="field" type="range" min="0" max="100" value="100"></div>
-            </div>
-
-            <div class="row-3" style="margin-top:6px; align-items:end">
-              <div class="input-wrap">
-                <label class="ref-label">Estilo</label>
-                <div class="select-wrap">
-                  <select id="logoStyle" class="field select">
-                    <option value="white" selected>Branco (padrão)</option>
-                    <option value="color">Colorido</option>
-                    <option value="custom">URL customizada</option>
-                  </select>
-                </div>
-              </div>
-              <div class="input-wrap" style="grid-column: span 2;">
-                <label class="ref-label">URL (se custom)</label>
-                <input id="logoUrl" class="field" type="url" placeholder="/img/logo-aviv-plus.png" disabled>
-              </div>
-            </div>
-
-            <div class="help small">Dica: arraste o logo no canvas para posicionar.</div>
-          </div>
-        </div>
-
-        <!-- Painel: Exportar -->
-        <div class="tab-panel" data-panel="export" style="display:none">
-          <div class="group">
-            <div class="group-title">Exportar</div>
-            <div class="row-3">
-              <div class="input-wrap">
-                <label class="ref-label">Escala PNG</label>
-                <div class="select-wrap">
-                  <select id="scale2" class="field select">
-                    <option value="1">1×</option>
-                    <option value="2" selected>2×</option>
-                    <option value="3">3×</option>
-                  </select>
-                </div>
-              </div>
-              <div class="input-wrap">
-                <label class="ref-label">Gerar HTML</label>
-                <label class="switch"><input id="htmlEmbedData" type="checkbox" checked><span></span></label>
-                <div class="help small">Se ligado, o &lt;img&gt; usa dataURL embutido.</div>
-              </div>
-            </div>
-            <div class="actions" style="margin-top:8px">
-              <button id="btn-download" class="btn btn-sm" type="button">Baixar PNG</button>
-              <button id="btn-genhtml" class="btn btn-sm btn--ghost" type="button">Gerar HTML</button>
-            </div>
-            <div id="html-wrap" style="display:none; margin-top:10px">
-              <label class="ref-label">Código HTML</label>
-              <textarea id="html-code" class="field" rows="6" spellcheck="false"></textarea>
               <div class="actions" style="margin-top:8px">
-                <button id="copy-html" class="btn btn-sm" type="button">Copiar HTML</button>
-                <button id="save-html" class="btn btn-sm btn--ghost" type="button">Baixar HTML</button>
+                <button id="applyWH" class="btn btn-sm" type="button">Aplicar tamanho</button>
+                <button id="resetPos" class="btn btn-sm btn--ghost" type="button">Centralizar elementos</button>
+              </div>
+            </div>
+
+            <div class="group">
+              <div class="group-title">Fundo</div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Cor 1</label>
+                  <input id="bg1" class="field" type="color" value="#0e1f33">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Cor 2</label>
+                  <input id="bg2" class="field" type="color" value="#0a1a2b">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Gradiente</label>
+                  <label class="switch">
+                    <input id="useGrad" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="row-3" style="margin-top:6px">
+                <div class="input-wrap">
+                  <label class="ref-label">Raio borda</label>
+                  <input id="radius" class="field" type="range" min="0" max="160" value="28">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Cartão interno</label>
+                  <label class="switch">
+                    <input id="useCard" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Opacidade cartão</label>
+                  <input id="cardAlpha" class="field" type="range" min="0" max="100" value="8">
+                </div>
+              </div>
+              <div class="row-3" style="margin-top:6px">
+                <div class="input-wrap">
+                  <label class="ref-label">Mostrar grade</label>
+                  <label class="switch">
+                    <input id="showGrid" type="checkbox">
+                    <span></span>
+                  </label>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Área segura</label>
+                  <label class="switch">
+                    <input id="safeArea" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Painel: Texto (primário) -->
+          <div class="tab-panel" data-panel="text" style="display:none">
+            <div class="group">
+              <div class="group-title">Texto principal</div>
+              <div class="input-wrap">
+                <label class="ref-label">Conteúdo</label>
+                <input id="txt" class="field" type="text" value="Benefícios, cupons e muito mais">
+              </div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Tamanho</label>
+                  <input id="txtSize" class="field" type="range" min="10" max="300" value="96">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Largura máx. (%)</label>
+                  <input id="txtMax" class="field" type="range" min="30" max="95" value="80">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Alinhamento</label>
+                  <div class="select-wrap">
+                    <select id="align" class="field select">
+                      <option value="left">Esquerda</option>
+                      <option value="center" selected>Centro</option>
+                      <option value="right">Direita</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Peso</label>
+                  <div class="select-wrap">
+                    <select id="weight" class="field select">
+                      <option>600</option>
+                      <option selected>800</option>
+                      <option>900</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Cor</label>
+                  <input id="txtColor" class="field" type="color" value="#ffffff">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Sombra</label>
+                  <label class="switch">
+                    <input id="shadow" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                </div>
+              </div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Blur</label>
+                  <input id="shBlur" class="field" type="range" min="0" max="50" value="16">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Opacidade</label>
+                  <input id="shAlpha" class="field" type="range" min="0" max="100" value="30">
+                </div>
+              </div>
+              <div class="help small">
+                Arraste no canvas (agora livre em X e Y). Segure <strong>Shift</strong> para travar automaticamente no eixo do movimento.
+              </div>
+            </div>
+          </div>
+
+          <!-- Painel: Texto Secundário -->
+          <div class="tab-panel" data-panel="sec" style="display:none">
+            <div class="group">
+              <div class="group-title">Texto secundário</div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Ativar</label>
+                  <label class="switch">
+                    <input id="secOn" type="checkbox">
+                    <span></span>
+                  </label>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Cor</label>
+                  <input id="secColor" class="field" type="color" value="#e3efff">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Peso</label>
+                  <div class="select-wrap">
+                    <select id="secWeight" class="field select">
+                      <option>400</option>
+                      <option selected>600</option>
+                      <option>700</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="input-wrap" style="margin-top:6px">
+                <label class="ref-label">Conteúdo</label>
+                <input id="secTxt" class="field" type="text" placeholder="Escreva aqui…">
+              </div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Tamanho</label>
+                  <input id="secSize" class="field" type="range" min="8" max="200" value="48">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Largura máx. (%)</label>
+                  <input id="secMax" class="field" type="range" min="30" max="95" value="80">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Alinhamento</label>
+                  <div class="select-wrap">
+                    <select id="secAlign" class="field select">
+                      <option value="left">Esquerda</option>
+                      <option value="center" selected>Centro</option>
+                      <option value="right">Direita</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Sombra</label>
+                  <label class="switch">
+                    <input id="secShadow" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Blur</label>
+                  <input id="secBlur" class="field" type="range" min="0" max="40" value="10">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Opacidade</label>
+                  <input id="secAlpha" class="field" type="range" min="0" max="100" value="25">
+                </div>
+              </div>
+              <div class="help small">Arraste o texto secundário no canvas para posicionar.</div>
+            </div>
+          </div>
+
+          <!-- Painel: Logo -->
+          <div class="tab-panel" data-panel="logo" style="display:none">
+            <div class="group">
+              <div class="group-title">Logo</div>
+
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Exibir</label>
+                  <label class="switch">
+                    <input id="logoOn" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Tamanho (%)</label>
+                  <input id="logoScale" class="field" type="range" min="10" max="200" value="60">
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Opacidade</label>
+                  <input id="logoAlpha" class="field" type="range" min="0" max="100" value="100">
+                </div>
+              </div>
+
+              <div class="row-3" style="margin-top:6px; align-items:end">
+                <div class="input-wrap">
+                  <label class="ref-label">Estilo</label>
+                  <div class="select-wrap">
+                    <select id="logoStyle" class="field select">
+                      <option value="white" selected>Branco (padrão)</option>
+                      <option value="color">Colorido</option>
+                      <option value="custom">URL customizada</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="input-wrap" style="grid-column: span 2;">
+                  <label class="ref-label">URL (se custom)</label>
+                  <input id="logoUrl" class="field" type="url" placeholder="/img/logo-aviv-plus.png" disabled>
+                </div>
+              </div>
+
+              <div class="help small">Dica: arraste o logo no canvas para posicionar.</div>
+            </div>
+          </div>
+
+          <!-- Painel: Exportar -->
+          <div class="tab-panel" data-panel="export" style="display:none">
+            <div class="group">
+              <div class="group-title">Exportar</div>
+              <div class="row-3">
+                <div class="input-wrap">
+                  <label class="ref-label">Escala PNG</label>
+                  <div class="select-wrap">
+                    <select id="scale2" class="field select">
+                      <option value="1">1×</option>
+                      <option value="2" selected>2×</option>
+                      <option value="3">3×</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="input-wrap">
+                  <label class="ref-label">Gerar HTML</label>
+                  <label class="switch">
+                    <input id="htmlEmbedData" type="checkbox" checked>
+                    <span></span>
+                  </label>
+                  <div class="help small">
+                    Se ligado, o &lt;img&gt; usa dataURL embutido.
+                  </div>
+                </div>
+              </div>
+              <div class="actions" style="margin-top:8px">
+                <button id="btn-download" class="btn btn-sm" type="button">Baixar PNG</button>
+                <button id="btn-genhtml" class="btn btn-sm btn--ghost" type="button">Gerar HTML</button>
+              </div>
+              <div id="html-wrap" style="display:none; margin-top:10px">
+                <label class="ref-label">Código HTML</label>
+                <textarea id="html-code" class="field" rows="6" spellcheck="false"></textarea>
+                <div class="actions" style="margin-top:8px">
+                  <button id="copy-html" class="btn btn-sm" type="button">Copiar HTML</button>
+                  <button id="save-html" class="btn btn-sm btn--ghost" type="button">Baixar HTML</button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- PREVIEW (1/3) -->
-      <div class="glass-card preview-card">
-        <div class="row-3">
-          <div class="input-wrap" style="grid-column: span 3;">
-            <label class="ref-label">Zoom da pré-visualização</label>
-            <input id="pvZoom" class="field" type="range" min="30" max="100" value="90">
+        <!-- PREVIEW (1/3) -->
+        <div class="glass-card preview-card">
+          <div class="row-3">
+            <div class="input-wrap" style="grid-column: span 3;">
+              <label class="ref-label">Zoom da pré-visualização</label>
+              <input id="pvZoom" class="field" type="range" min="30" max="100" value="90">
+            </div>
+          </div>
+          <div class="preview-wrap">
+            <canvas id="canvas" width="1080" height="1080"></canvas>
+          </div>
+          <div class="help small" style="margin-top:8px">
+            Arraste elementos no canvas (livre em X e Y). Com <strong>Shift</strong>, travo automaticamente no eixo do movimento.
           </div>
         </div>
-        <div class="preview-wrap">
-          <canvas id="canvas" width="1080" height="1080"></canvas>
-        </div>
-        <div class="help small" style="margin-top:8px">Arraste elementos no canvas (livre em X e Y). Com <strong>Shift</strong>, travo automaticamente no eixo do movimento.</div>
       </div>
-    </div>
-  </section>
+    </section>
+  </div>
 </section>
 
 <script>
@@ -256,7 +401,7 @@ function loadImage(url){ return new Promise(res=>{ if(!url){res(null);return;} c
 function lsGet(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(_){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){} }
 
-// logos (corrigido)
+// logos
 const LOGOS = {
   white: '/img/logo-aviv-plus.png', // branco (padrão)
   color: '/img/logo.png'            // colorido
@@ -291,8 +436,8 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
 });
 
 // ===== UI <-> State =====
-function bind(id, path, transform= v=>v){
-  const el = $(id);
+function bind(sel, path, transform= v=>v){
+  const el = $(sel);
   const get = () => path.reduce((o,k)=>o[k], S);
   const set = (val) => {
     let o=S;
@@ -302,8 +447,11 @@ function bind(id, path, transform= v=>v){
     lsSet('aff_banner_state_v4', S);
   };
   // initial
-  if (el.type === 'checkbox') el.checked = !!get();
-  else if (el.type === 'range' || el.type === 'number' || el.tagName==='SELECT' || el.type==='color' || el.type==='text' || el.type==='url') el.value = get();
+  if (el.type === 'checkbox') {
+    el.checked = !!get();
+  } else {
+    el.value = get();
+  }
 
   const ev = (el.type==='text'||el.type==='url') ? 'change':'input';
   el.addEventListener(ev, ()=>{
@@ -311,8 +459,8 @@ function bind(id, path, transform= v=>v){
             : (el.type==='number'||el.type==='range') ? +el.value
             : el.value;
     set(v);
-    if (id==='#logoStyle') syncLogoUrlFromStyle();
-    if (id==='#logoUrl') loadLogo();
+    if (sel==='#logoStyle') syncLogoUrlFromStyle();
+    if (sel==='#logoUrl') loadLogo();
   });
 }
 
@@ -354,7 +502,11 @@ bind('#logoAlpha', ['logo','alpha'], v=>clamp(+v,0,100)/100);
 bind('#logoStyle', ['logo','style']);
 bind('#logoUrl', ['logo','url']);
 
-$('#applyWH').addEventListener('click', ()=>{ canvas.width = S.w; canvas.height = S.h; scheduleDraw(true); });
+$('#applyWH').addEventListener('click', ()=>{
+  canvas.width = S.w;
+  canvas.height = S.h;
+  scheduleDraw(true);
+});
 $('#resetPos').addEventListener('click', ()=>{
   S.text.x = 0.5; S.text.y = 0.44;
   S.sec.x  = 0.5; S.sec.y  = 0.58;
@@ -382,32 +534,64 @@ function syncLogoUrlFromStyle(){
 
 // Copiar
 function copySelector(sel){
-  try{ const el=document.querySelector(sel); if(!el) return; el.select(); el.setSelectionRange(0,99999); document.execCommand('copy'); }
-  catch(e){ try{ navigator.clipboard && navigator.clipboard.writeText(document.querySelector(sel).value); }catch(_){ } }
+  try{
+    const el=document.querySelector(sel);
+    if(!el) return;
+    el.select();
+    el.setSelectionRange(0,99999);
+    document.execCommand('copy');
+  } catch(e){
+    try{
+      navigator.clipboard && navigator.clipboard.writeText(document.querySelector(sel).value);
+    }catch(_){}
+  }
 }
 document.addEventListener('click', (ev)=>{
-  const b=ev.target.closest('[data-copy]'); if(!b) return;
-  ev.preventDefault(); copySelector(b.getAttribute('data-copy'));
-  const old=b.textContent; b.textContent='Copiado!'; setTimeout(()=>b.textContent=old,900);
+  const b=ev.target.closest('[data-copy]');
+  if(!b) return;
+  ev.preventDefault();
+  copySelector(b.getAttribute('data-copy'));
+  const old=b.textContent;
+  b.textContent='Copiado!';
+  setTimeout(()=>b.textContent=old,900);
 });
 
 // ===== draw =====
 let raf=0;
-function scheduleDraw(now=false){ if(now){draw(); return;} if(raf) cancelAnimationFrame(raf); raf=requestAnimationFrame(draw); }
+function scheduleDraw(now=false){
+  if(now){draw(); return;}
+  if(raf) cancelAnimationFrame(raf);
+  raf=requestAnimationFrame(draw);
+}
 
-function drawRoundedRect(x,y,w,h,r){ const rr=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr); ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath(); }
+function drawRoundedRect(x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+}
 
 function draw(){
   raf=0;
   const {w,h} = S;
-  if (canvas.width!==w || canvas.height!==h){ canvas.width=w; canvas.height=h; }
+  if (canvas.width!==w || canvas.height!==h){
+    canvas.width=w;
+    canvas.height=h;
+  }
 
   // Fundo
   if (S.useGrad){
     const g=ctx.createLinearGradient(0,0,w,h);
-    g.addColorStop(0,S.bg1); g.addColorStop(1,S.bg2);
+    g.addColorStop(0,S.bg1);
+    g.addColorStop(1,S.bg2);
     ctx.fillStyle=g;
-  } else { ctx.fillStyle=S.bg1; }
+  } else {
+    ctx.fillStyle=S.bg1;
+  }
   ctx.fillRect(0,0,w,h);
 
   // Moldura/Cartão
@@ -422,8 +606,11 @@ function draw(){
 
   if (S.useCard){
     drawRoundedRect(cx,cy,cw,ch,radius);
-    ctx.fillStyle = `rgba(255,255,255,${S.cardAlpha})`; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.10)'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle = `rgba(255,255,255,${S.cardAlpha})`;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.lineWidth=1;
+    ctx.stroke();
   }
 
   // Área segura
@@ -432,7 +619,9 @@ function draw(){
 
   // Grade
   if (S.showGrid){
-    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.lineWidth=1;
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.10)';
+    ctx.lineWidth=1;
     for(let i=1;i<4;i++){
       const gx = sx + (sw/4)*i;
       const gy = sy + (sh/4)*i;
@@ -453,7 +642,9 @@ function draw(){
     ctx.drawImage(LOGO_IMG, x, y, lw, lh);
     ctx.globalAlpha = 1;
     BBOX.logo = {x,y,w:lw,h:lh};
-  } else { BBOX.logo = null; }
+  } else {
+    BBOX.logo = null;
+  }
 
   // TEXTO PRINCÁRIO
   drawTextBlock('text', sx, sy, sw, sh);
@@ -461,7 +652,9 @@ function draw(){
   // TEXTO SECUNDÁRIO
   if (S.sec.on && (S.sec.value||'').trim()!==''){
     drawTextBlock('sec', sx, sy, sw, sh);
-  } else { BBOX.sec = null; }
+  } else {
+    BBOX.sec = null;
+  }
 }
 
 function drawTextBlock(key, sx, sy, sw, sh){
@@ -483,8 +676,12 @@ function drawTextBlock(key, sx, sy, sw, sh){
   if (T.shadow){
     ctx.shadowColor = `rgba(0,0,0,${T.shAlpha})`;
     ctx.shadowBlur = T.shBlur;
-    ctx.shadowOffsetX = 0; ctx.shadowOffsetY = Math.round(T.shBlur/3);
-  } else { ctx.shadowColor='transparent'; ctx.shadowBlur=0; }
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.round(T.shBlur/3);
+  } else {
+    ctx.shadowColor='transparent';
+    ctx.shadowBlur=0;
+  }
 
   let alignX = tx;
   if (T.align==='left')  alignX = clamp(tx, sx, sx+sw-maxW);
@@ -503,14 +700,16 @@ function drawTextBlock(key, sx, sy, sw, sh){
   BBOX[key] = {x:left, y:ty, w:maxLineW, h:totalH};
 }
 
-function wrapText(ctx, text, maxWidth, lineHeight){
+function wrapText(ctx, text, maxWidth){
   const words = String(text||'').split(/\s+/).filter(Boolean);
   const lines=[]; let line='';
   for(let i=0;i<words.length;i++){
     const test = line ? line+' '+words[i] : words[i];
     if (ctx.measureText(test).width > maxWidth && line){
       lines.push(line); line=words[i];
-    } else { line=test; }
+    } else {
+      line=test;
+    }
   }
   if (line) lines.push(line);
   return lines;
@@ -520,10 +719,12 @@ function wrapText(ctx, text, maxWidth, lineHeight){
 const BBOX = { text:null, sec:null, logo:null };
 let dragging = null; // 'text' | 'sec' | 'logo'
 let dragOff = {x:0, y:0};
-let dragStart = null; // pointer inicial
-let moveAxis = null;  // 'x' | 'y' | null
+let dragStart = null;
+let moveAxis = null;
 
-function hit(pt, box){ return box && pt.x>=box.x && pt.x<=box.x+box.w && pt.y>=box.y && pt.y<=box.y+box.h; }
+function hit(pt, box){
+  return box && pt.x>=box.x && pt.x<=box.x+box.w && pt.y>=box.y && pt.y<=box.y+box.h;
+}
 function getPointer(evt){
   const r=canvas.getBoundingClientRect();
   const x = (evt.touches?evt.touches[0].clientX:evt.clientX) - r.left;
@@ -539,7 +740,8 @@ function onDown(e){
   else return;
 
   const b = BBOX[dragging];
-  dragOff.x=p.x-(b.x+b.w/2); dragOff.y=p.y-(b.y+b.h/2);
+  dragOff.x=p.x-(b.x+b.w/2);
+  dragOff.y=p.y-(b.y+b.h/2);
   dragStart = {x:p.x, y:p.y};
   moveAxis = null;
   e.preventDefault();
@@ -571,7 +773,12 @@ function onMove(e){
   scheduleDraw();
   e.preventDefault();
 }
-function onUp(){ dragging=null; moveAxis=null; dragStart=null; lsSet('aff_banner_state_v4', S); }
+function onUp(){
+  dragging=null;
+  moveAxis=null;
+  dragStart=null;
+  lsSet('aff_banner_state_v4', S);
+}
 
 canvas.addEventListener('mousedown', onDown);
 canvas.addEventListener('mousemove', onMove);
@@ -581,7 +788,10 @@ canvas.addEventListener('touchmove', onMove, {passive:false});
 canvas.addEventListener('touchend', onUp);
 
 // ===== logo loader =====
-async function loadLogo(){ LOGO_IMG = await loadImage(S.logo.url); scheduleDraw(true); }
+async function loadLogo(){
+  LOGO_IMG = await loadImage(S.logo.url);
+  scheduleDraw(true);
+}
 syncLogoUrlFromStyle();
 loadLogo();
 
@@ -589,14 +799,16 @@ loadLogo();
 applyPreviewZoom();
 
 // ===== inicial =====
-canvas.width=S.w; canvas.height=S.h;
+canvas.width=S.w;
+canvas.height=S.h;
 scheduleDraw(true);
 
 // ===== download PNG =====
 $('#btn-download').addEventListener('click', ()=>{
   const scale = clamp(+($('#scale2').value || $('#scale').value) || 2, 1, 4);
   const exp = document.createElement('canvas');
-  exp.width = S.w*scale; exp.height = S.h*scale;
+  exp.width = S.w*scale;
+  exp.height = S.h*scale;
   const ex = exp.getContext('2d');
   ex.scale(scale, scale);
   draw();
@@ -623,7 +835,8 @@ $('#btn-genhtml').addEventListener('click', ()=>{
 
 $('#copy-html').addEventListener('click', ()=>{
   const ta = $('#html-code');
-  ta.select(); ta.setSelectionRange(0, 999999);
+  ta.select();
+  ta.setSelectionRange(0, 999999);
   document.execCommand('copy');
 });
 
@@ -631,128 +844,332 @@ $('#save-html').addEventListener('click', ()=>{
   const blob = new Blob([$('#html-code').value], {type:'text/html;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `banner-aviv-${Date.now()}.html`;
+  a.href = url;
+  a.download = `banner-aviv-${Date.now()}.html`;
   a.click();
   URL.revokeObjectURL(url);
 });
 </script>
 
 <style>
-/* ——— estilo roxinho/admin ——— */
-.muted{ color:#cfe1ff; opacity:.88; }
-.sect-title{ font-weight:800; color:#fff; }
-.sect-sub{ font-weight:800; color:#fff; margin:0; }
-.glass-card{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); padding:14px; border-radius:14px; color:#fff; }
+/* ===== Shell geral alinhado ao layout clean ===== */
+.affiliate-links-page{
+  width:100%;
+  padding:24px 0 48px;
+}
+.affiliate-links-inner{
+  width:min(92vw, 1120px);
+  margin-inline:auto;
+}
+.affiliate-links-page .admin-main{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
 
-.btn{ display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px; background:#fff; color:#0e253b; font-weight:800; border:0; text-decoration:none; cursor:pointer; }
-.btn--ghost{ background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.24); }
-.btn.btn-sm{ padding:9px 14px; font-size:.95rem; box-shadow:0 8px 18px rgba(0,0,0,.18); }
-.actions{ display:flex; gap:10px; flex-wrap:wrap; }
+/* Cards brancos e tipografia */
+.affiliate-links-page .glass-card{
+  background:#ffffff;
+  border-radius:22px;
+  border:1px solid #e2e8f0;
+  box-shadow:
+    0 22px 60px rgba(15,23,42,.10),
+    0 0 0 1px rgba(148,163,184,.06);
+  padding:18px 20px;
+}
+.affiliate-links-page .sect-title{
+  font-family:"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight:800;
+  font-size:1.3rem;
+  color:#0f172a;
+}
+.affiliate-links-page .sect-sub{
+  font-family:"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight:700;
+  font-size:1rem;
+  color:#0f172a;
+}
+.affiliate-links-page .muted{
+  color:#64748b;
+}
 
-/* Link inputs */
-.ref-row{ display:grid; gap:6px; }
-.ref-label{ font-weight:800; opacity:.95 }
-.ref-input{ display:flex; gap:10px; align-items:center; }
-.ref-input input{
-  flex:1; border-radius:999px; border:1px solid rgba(255,255,255,.18);
-  background:rgba(255,255,255,.07); color:#fff; padding:10px 12px; font-weight:800;
+/* Botões */
+.affiliate-links-page .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:9px 14px;
+  border-radius:999px;
+  border:1px solid #e2e8f0;
+  background:#0f172a;
+  color:#f9fafb;
+  font-weight:700;
+  font-size:.9rem;
+  text-decoration:none;
+  cursor:pointer;
+  transition:.12s ease;
+}
+.affiliate-links-page .btn:hover{
+  filter:brightness(1.02);
+  box-shadow:0 10px 26px rgba(15,23,42,.18);
+}
+.affiliate-links-page .btn--ghost{
+  background:#ffffff;
+  color:#0f172a;
+}
+.affiliate-links-page .btn.btn-sm{
+  padding:8px 13px;
+  font-size:.85rem;
+}
+
+/* Inputs de link */
+.affiliate-links-page .ref-row{
+  display:grid;
+  gap:6px;
+}
+.affiliate-links-page .ref-label{
+  font-size:.82rem;
+  font-weight:800;
+  color:#475569;
+}
+.affiliate-links-page .ref-input{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.affiliate-links-page .ref-input input{
+  flex:1;
+  border-radius:999px;
+  border:1px solid #e2e8f0;
+  background:#f8fafc;
+  color:#0f172a;
+  padding:10px 12px;
+  font-weight:600;
+  font-size:.9rem;
 }
 
 /* Editor grid 2/3 + 1/3 */
-.editor-grid{ display:grid; gap:12px; grid-template-columns: 2fr 1fr; align-items:start; }
-@media (max-width: 1200px){ .editor-grid{ grid-template-columns:1fr; } }
-
-/* Reordenar no mobile: preview primeiro, depois controles */
+.affiliate-links-page .editor-grid{
+  display:grid;
+  gap:12px;
+  grid-template-columns: 2fr 1fr;
+  align-items:flex-start;
+}
+@media (max-width: 1200px){
+  .affiliate-links-page .editor-grid{
+    grid-template-columns:1fr;
+  }
+}
 @media (max-width: 900px){
-  .preview-card{ order:-1; }
+  .affiliate-links-page .preview-card{
+    order:-1;
+  }
 }
 
 /* Tabs */
-.tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-/* rolável no mobile */
+.affiliate-links-page .tabs{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
 @media (max-width: 720px){
-  .tabs{ flex-wrap:nowrap; overflow:auto; -webkit-overflow-scrolling:touch; }
-  .tab-btn{ flex:0 0 auto; }
+  .affiliate-links-page .tabs{
+    flex-wrap:nowrap;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .affiliate-links-page .tab-btn{
+    flex:0 0 auto;
+  }
 }
-.tab-btn{
-  padding:8px 12px; border-radius:10px; border:1px solid rgba(186,126,255,.35);
-  background:#281B3E; color:#f1e9ff; cursor:pointer; font-weight:700;
+.affiliate-links-page .tab-btn{
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid #cbd5f5;
+  background:#f1f5f9;
+  color:#0f172a;
+  cursor:pointer;
+  font-weight:600;
+  font-size:.85rem;
 }
-.tab-btn.current{ outline:2px solid rgba(186,126,255,.45); outline-offset:2px; }
+.affiliate-links-page .tab-btn.current{
+  background:#ffffff;
+  border-color:#2563eb;
+  color:#1d4ed8;
+}
 
 /* Groups */
-.group{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:12px; }
-.group + .group{ margin-top:10px; }
-.group-title{ font-weight:800; margin:0 0 8px; opacity:.95; }
-.help.small{ font-size:.85rem; opacity:.8; margin-top:6px }
+.affiliate-links-page .group{
+  background:#f9fafb;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:12px;
+}
+.affiliate-links-page .group + .group{
+  margin-top:10px;
+}
+.affiliate-links-page .group-title{
+  font-weight:700;
+  margin:0 0 8px;
+  font-size:.9rem;
+  color:#0f172a;
+}
+.affiliate-links-page .help.small{
+  font-size:.8rem;
+  color:#6b7280;
+  margin-top:6px;
+}
 
 /* Controls layout */
-.row-3{ display:grid; gap:8px; grid-template-columns:1fr 1fr 1fr; }
-@media (max-width: 900px){ .row-3{ grid-template-columns:1fr; } }
-.input-wrap{ display:grid; gap:6px; }
-.field{
-  width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px;
-  border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08); color:#eaf3ff; outline:none;
+.affiliate-links-page .row-3{
+  display:grid;
+  gap:8px;
+  grid-template-columns:1fr 1fr 1fr;
+}
+@media (max-width: 900px){
+  .affiliate-links-page .row-3{
+    grid-template-columns:1fr;
+  }
+}
+.affiliate-links-page .input-wrap{
+  display:grid;
+  gap:6px;
+}
+.affiliate-links-page .field{
+  width:100%;
+  box-sizing:border-box;
+  padding:9px 11px;
+  border-radius:10px;
+  border:1px solid #d1d5db;
+  background:#ffffff;
+  color:#0f172a;
+  font-size:.9rem;
+  outline:none;
+}
+.affiliate-links-page .field:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 1px rgba(37,99,235,.2);
 }
 
-/* Color inputs — mostram swatch corretamente */
-.field[type="color"]{
-  padding:0; height:38px; min-height:38px; cursor:pointer;
+/* Color inputs */
+.affiliate-links-page .field[type="color"]{
+  padding:0;
+  height:38px;
+  min-height:38px;
+  cursor:pointer;
   background:transparent;
 }
-.field[type="color"]::-webkit-color-swatch-wrapper{ padding:0; }
-.field[type="color"]::-webkit-color-swatch{ border:none; border-radius:8px; }
-.field[type="color"]::-moz-color-swatch{ border:none; border-radius:8px; }
-
-/* Select roxinho local do editor */
-.select-wrap{ position:relative; }
-.select{
-  appearance:none; -webkit-appearance:none; -moz-appearance:none;
-  background:#281B3E; border:1px solid rgba(186,126,255,.35); color:#f1e9ff; padding-right:38px;
+.affiliate-links-page .field[type="color"]::-webkit-color-swatch-wrapper{ padding:0; }
+.affiliate-links-page .field[type="color"]::-webkit-color-swatch{
+  border:none;
+  border-radius:8px;
 }
-.select-wrap::after{
-  content:""; position:absolute; right:12px; top:50%; width:0; height:0; pointer-events:none;
-  border-left:6px solid transparent; border-right:6px solid transparent; border-top:7px solid #f1e9ff; transform:translateY(-50%);
+.affiliate-links-page .field[type="color"]::-moz-color-swatch{
+  border:none;
+  border-radius:8px;
+}
+
+/* Select */
+.affiliate-links-page .select-wrap{ position:relative; }
+.affiliate-links-page .select{
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  padding-right:34px;
+  background:#ffffff;
+}
+.affiliate-links-page .select-wrap::after{
+  content:"";
+  position:absolute;
+  right:10px;
+  top:50%;
+  width:0;
+  height:0;
+  pointer-events:none;
+  border-left:6px solid transparent;
+  border-right:6px solid transparent;
+  border-top:7px solid #6b7280;
+  transform:translateY(-50%);
 }
 
 /* Switch */
-.switch{ position:relative; display:inline-block; width:46px; height:26px; }
-.switch input{ display:none; }
-.switch span{
-  position:absolute; cursor:pointer; inset:0; background:#2b2240; border:1px solid rgba(186,126,255,.35);
-  border-radius:999px; transition:.2s;
+.affiliate-links-page .switch{
+  position:relative;
+  display:inline-block;
+  width:46px;
+  height:26px;
 }
-.switch span:before{
-  content:""; position:absolute; height:20px; width:20px; left:3px; top:50%; transform:translateY(-50%);
-  background:#fff; border-radius:50%; transition:.2s;
+.affiliate-links-page .switch input{
+  display:none;
 }
-.switch input:checked + span{ background:#6f43c5; }
-.switch input:checked + span:before{ transform:translate(18px,-50%); }
+.affiliate-links-page .switch span{
+  position:absolute;
+  cursor:pointer;
+  inset:0;
+  background:#e5e7eb;
+  border-radius:999px;
+  transition:.2s;
+}
+.affiliate-links-page .switch span:before{
+  content:"";
+  position:absolute;
+  height:20px;
+  width:20px;
+  left:3px;
+  top:50%;
+  transform:translateY(-50%);
+  background:#ffffff;
+  border-radius:50%;
+  box-shadow:0 2px 4px rgba(15,23,42,.18);
+  transition:.2s;
+}
+.affiliate-links-page .switch input:checked + span{
+  background:#22c55e;
+}
+.affiliate-links-page .switch input:checked + span:before{
+  transform:translate(18px,-50%);
+}
 
 /* Preview */
-.preview-card{ display:flex; flex-direction:column; }
-.preview-wrap{ --zoom: .9; width:100%; overflow:hidden; }
-.preview-wrap canvas{
+.affiliate-links-page .preview-card{
+  display:flex;
+  flex-direction:column;
+}
+.affiliate-links-page .preview-wrap{
+  --zoom: .9;
+  width:100%;
+  overflow:hidden;
+}
+.affiliate-links-page .preview-wrap canvas{
   display:block;
   width: calc(var(--zoom) * 100%);
   max-width:100%;
   height:auto;
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,.14);
+  border-radius:16px;
+  border:1px solid #e2e8f0;
   background:transparent;
 }
 
-/* ==== MOBILE TWEAKS ==== */
+/* Ações */
+.affiliate-links-page .actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* Mobile tweaks */
 @media (max-width: 720px){
-  .glass-card{ padding:12px; }
-  .actions .btn{ flex:1 1 auto; }
-
-  /* inputs de link: quebram em linhas e botões ficam fluidos */
-  .ref-input{ flex-wrap:wrap; }
-  .ref-input .btn{ flex:1 1 160px; }
-  .ref-input a.btn{ text-align:center; }
-
-  /* mantém preview sempre visível no topo da página */
-  .preview-wrap{ margin-top:4px; }
+  .affiliate-links-page .glass-card{
+    padding:14px;
+  }
+  .affiliate-links-page .ref-input{
+    flex-wrap:wrap;
+  }
+  .affiliate-links-page .ref-input .btn{
+    flex:1 1 160px;
+    text-align:center;
+  }
 }
 </style>

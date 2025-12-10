@@ -1,5 +1,5 @@
 <?php
-// Afiliado • Ganhos — glass style igual ao admin, SEM fetch (evita 403)
+// Afiliado • Ganhos — layout clean (cards brancos), sem fetch extra de overview.
 // Lemos percent/min diretamente do serviço para refletir o BD em tempo real.
 
 $stats = array_merge([
@@ -9,8 +9,8 @@ $stats = array_merge([
   'sum_commission' => 0.0,
   'available'      => 0.0,
   'locked'         => 0.0,
-  'min_payout'     => null,   // vamos calcular já-já
-  'percent'        => null,   // idem
+  'min_payout'     => null,
+  'percent'        => null,
 ], is_array($stats ?? null) ? $stats : []);
 
 $list = is_array($list ?? null) ? $list : [];
@@ -23,261 +23,518 @@ $minPay  = is_numeric($stats['min_payout']) ? (float)$stats['min_payout'] : \App
 $moeda = fn($v) => 'R$ ' . number_format((float)$v, 2, ',', '.');
 $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
 ?>
-<section class="container admin affiliate-page" style="margin-top:18px">
-  <section class="admin-main">
 
-    <!-- Cabeçalho -->
-    <div class="glass-card card-head">
-      <div class="head-row">
-        <div>
-          <h1 class="sect-title" style="margin:0">Afiliados • Ganhos</h1>
-          <p class="muted" style="margin:6px 0 0">
-            Você ganha <strong><?= $pc($percent) ?></strong> nas assinaturas pagas que vierem pelo seu link.
-          </p>
-        </div>
-      </div>
-    </div>
+<section class="affiliate-gains-page">
+  <div class="affiliate-gains-inner container admin affiliate-page">
+    <section class="admin-main">
 
-    <!-- KPIs -->
-    <div class="kpis" style="margin-top:12px;">
-      <article class="glass-card kpi">
-        <div class="kpi-top">Aprovadas</div>
-        <div class="kpi-num"><?= (int)$stats['n_approved'] ?></div>
-        <div class="kpi-foot muted">Pendentes: <?= (int)$stats['n_pending'] ?> • Rejeitadas: <?= (int)$stats['n_rejected'] ?></div>
-      </article>
-
-      <article class="glass-card kpi">
-        <div class="kpi-top">Comissão aprovada</div>
-        <div class="kpi-num"><?= $moeda($stats['sum_commission']) ?></div>
-      </article>
-
-      <article class="glass-card kpi">
-        <div class="kpi-top">Disponível p/ saque</div>
-        <div class="kpi-num"><?= $moeda($stats['available']) ?></div>
-        <div class="kpi-foot muted">Mín. saque: <strong><?= $moeda($minPay) ?></strong></div>
-      </article>
-
-      <article class="glass-card kpi">
-        <div class="kpi-top">Em processamento</div>
-        <div class="kpi-num"><?= $moeda($stats['locked']) ?></div>
-        <div class="kpi-foot muted">% atual: <strong><?= $pc($percent) ?></strong></div>
-      </article>
-    </div>
-
-    <!-- ===== Saques: Solicitar + Histórico ===== -->
-    <div class="glass-card" style="margin-top:12px">
-      <div class="sect-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <h2 class="sect-sub" style="margin:0">Solicitar saque</h2>
-        <small class="muted">Mínimo: <strong><?= $moeda($minPay) ?></strong> • Disponível: <strong><?= $moeda($stats['available']) ?></strong></small>
-      </div>
-
-      <form id="payout-form" onsubmit="return false;" class="payout-form">
-        <div class="row-3">
-          <div class="input-wrap">
-            <label>Valor do saque</label>
-            <input id="payout-amount" class="field" type="number" step="0.01"
-                   min="<?= number_format((float)$minPay, 2, '.', '') ?>"
-                   max="<?= number_format((float)$stats['available'], 2, '.', '') ?>"
-                   placeholder="Ex.: 100,00" required>
-            <small class="muted">Mínimo: <?= $moeda($minPay) ?></small>
-          </div>
-
-          <div class="input-wrap">
-            <label>Tipo da chave PIX</label>
-            <select id="payout-pixtype" class="field" required>
-              <option value="" selected disabled>Selecione</option>
-              <option value="cpf">CPF</option>
-              <option value="cnpj">CNPJ</option>
-              <option value="email">E-mail</option>
-              <option value="phone">Telefone</option>
-              <option value="evp">Chave aleatória (EVP)</option>
-            </select>
-          </div>
-
-          <div class="input-wrap">
-            <label>Chave PIX</label>
-            <input id="payout-pixkey" class="field" type="text" placeholder="Digite sua chave PIX" required>
+      <!-- Cabeçalho -->
+      <div class="glass-card card-head">
+        <div class="head-row">
+          <div>
+            <h1 class="sect-title" style="margin:0">Afiliados • Ganhos</h1>
+            <p class="muted" style="margin:6px 0 0">
+              Você ganha <strong><?= $pc($percent) ?></strong> nas assinaturas pagas que vierem pelo seu link.
+            </p>
           </div>
         </div>
+      </div>
 
-        <div class="actions">
-          <?php $canRequest = (float)$stats['available'] >= (float)$minPay; ?>
-          <button id="payout-submit" class="btn" type="submit" <?= $canRequest ? '' : 'disabled' ?>>Solicitar saque</button>
-          <?php if (!$canRequest): ?>
-            <span class="muted">Você ainda não atingiu o mínimo para sacar.</span>
-          <?php endif; ?>
+      <!-- KPIs -->
+      <div class="kpis">
+        <article class="glass-card kpi">
+          <div class="kpi-top">Aprovadas</div>
+          <div class="kpi-num"><?= (int)$stats['n_approved'] ?></div>
+          <div class="kpi-foot muted">
+            Pendentes: <?= (int)$stats['n_pending'] ?> • Rejeitadas: <?= (int)$stats['n_rejected'] ?>
+          </div>
+        </article>
+
+        <article class="glass-card kpi">
+          <div class="kpi-top">Comissão aprovada</div>
+          <div class="kpi-num"><?= $moeda($stats['sum_commission']) ?></div>
+        </article>
+
+        <article class="glass-card kpi">
+          <div class="kpi-top">Disponível p/ saque</div>
+          <div class="kpi-num"><?= $moeda($stats['available']) ?></div>
+          <div class="kpi-foot muted">
+            Mín. saque: <strong><?= $moeda($minPay) ?></strong>
+          </div>
+        </article>
+
+        <article class="glass-card kpi">
+          <div class="kpi-top">Em processamento</div>
+          <div class="kpi-num"><?= $moeda($stats['locked']) ?></div>
+          <div class="kpi-foot muted">
+            % atual: <strong><?= $pc($percent) ?></strong>
+          </div>
+        </article>
+      </div>
+
+      <!-- ===== Saques: Solicitar + Histórico ===== -->
+      <div class="glass-card">
+        <div class="sect-head">
+          <h2 class="sect-sub" style="margin:0">Solicitar saque</h2>
+          <small class="muted">
+            Mínimo: <strong><?= $moeda($minPay) ?></strong> • Disponível: <strong><?= $moeda($stats['available']) ?></strong>
+          </small>
         </div>
 
-        <div id="payout-flash" class="flash" role="status" aria-live="polite"></div>
-      </form>
-    </div>
+        <form id="payout-form" onsubmit="return false;" class="payout-form">
+          <div class="row-3">
+            <div class="input-wrap">
+              <label>Valor do saque</label>
+              <input
+                id="payout-amount"
+                class="field"
+                type="number"
+                step="0.01"
+                min="<?= number_format((float)$minPay, 2, '.', '') ?>"
+                max="<?= number_format((float)$stats['available'], 2, '.', '') ?>"
+                placeholder="Ex.: 100,00"
+                required
+              >
+              <small class="muted">Mínimo: <?= $moeda($minPay) ?></small>
+            </div>
 
-    <div class="glass-card" style="margin-top:12px">
-      <div class="sect-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <h2 class="sect-sub" style="margin:0">Histórico de saques</h2>
+            <div class="input-wrap">
+              <label>Tipo da chave PIX</label>
+              <select id="payout-pixtype" class="field" required>
+                <option value="" selected disabled>Selecione</option>
+                <option value="cpf">CPF</option>
+                <option value="cnpj">CNPJ</option>
+                <option value="email">E-mail</option>
+                <option value="phone">Telefone</option>
+                <option value="evp">Chave aleatória (EVP)</option>
+              </select>
+            </div>
+
+            <div class="input-wrap">
+              <label>Chave PIX</label>
+              <input id="payout-pixkey" class="field" type="text" placeholder="Digite sua chave PIX" required>
+            </div>
+          </div>
+
+          <div class="actions">
+            <?php $canRequest = (float)$stats['available'] >= (float)$minPay; ?>
+            <button
+              id="payout-submit"
+              class="btn"
+              type="submit"
+              <?= $canRequest ? '' : 'disabled' ?>
+            >
+              Solicitar saque
+            </button>
+            <?php if (!$canRequest): ?>
+              <span class="muted">Você ainda não atingiu o mínimo para sacar.</span>
+            <?php endif; ?>
+          </div>
+
+          <div id="payout-flash" class="flash" role="status" aria-live="polite"></div>
+        </form>
       </div>
 
-      <div class="table-wrap table-glass" role="region" aria-label="Tabela de saques">
-        <table class="aff-table">
-          <thead>
-            <tr>
-              <th class="col-id">#</th>
-              <th>Data</th>
-              <th class="num">Valor</th>
-              <th>Status</th>
-              <th>Chave PIX</th>
-            </tr>
-          </thead>
-          <tbody id="payouts-body">
-            <tr><td colspan="5" class="muted">Carregando...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <!-- ===== /Saques ===== -->
+      <div class="glass-card">
+        <div class="sect-head">
+          <h2 class="sect-sub" style="margin:0">Histórico de saques</h2>
+        </div>
 
-    <!-- Lista de conversões -->
-    <div class="glass-card" style="margin-top:12px">
-      <div class="sect-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        <h2 class="sect-sub" style="margin:0">Conversões</h2>
-      </div>
-
-      <div class="table-wrap table-glass">
-        <?php if (!$list): ?>
-          <p class="muted" style="margin:4px 0 0">Sem conversões ainda.</p>
-        <?php else: ?>
+        <div class="table-wrap table-glass" role="region" aria-label="Tabela de saques">
           <table class="aff-table">
             <thead>
               <tr>
                 <th class="col-id">#</th>
-                <th>Indicado</th>
+                <th>Data</th>
                 <th class="num">Valor</th>
-                <th class="num">Comissão</th>
                 <th>Status</th>
-                <th>Criado</th>
+                <th>Chave PIX</th>
               </tr>
             </thead>
-            <tbody>
-            <?php foreach ($list as $r): ?>
-              <?php
-                $id   = (int)($r['id'] ?? 0);
-                $name = (string)($r['member_name'] ?? ($r['member_email'] ?? ('#'.$r['user_id'] ?? '')));
-                $amt  = (float)($r['amount'] ?? $r['amount_gross'] ?? 0);
-                $com  = (float)($r['commission'] ?? $r['amount_commission'] ?? 0);
-                $st   = (string)($r['status'] ?? 'pending');
-                $dt   = (string)($r['created_at'] ?? '');
-                $chip = ($st==='approved' ? 'chip-success' : ($st==='rejected'?'chip-failed' : ($st==='paid'?'chip-success':'chip-pending')));
-              ?>
-              <tr>
-                <td class="col-id"><?= $id ?></td>
-                <td><?= htmlspecialchars($name) ?></td>
-                <td class="num"><?= $moeda($amt) ?></td>
-                <td class="num"><strong><?= $moeda($com) ?></strong></td>
-                <td><span class="chip <?= $chip ?>"><?= htmlspecialchars($st) ?></span></td>
-                <td><?= htmlspecialchars($dt) ?></td>
-              </tr>
-            <?php endforeach; ?>
+            <tbody id="payouts-body">
+              <tr><td colspan="5" class="muted">Carregando...</td></tr>
             </tbody>
           </table>
-        <?php endif; ?>
+        </div>
       </div>
-    </div>
-  </section>
+      <!-- ===== /Saques ===== -->
+
+      <!-- Lista de conversões -->
+      <div class="glass-card">
+        <div class="sect-head">
+          <h2 class="sect-sub" style="margin:0">Conversões</h2>
+        </div>
+
+        <div class="table-wrap table-glass">
+          <?php if (!$list): ?>
+            <p class="muted" style="margin:4px 0 0">Sem conversões ainda.</p>
+          <?php else: ?>
+            <table class="aff-table">
+              <thead>
+                <tr>
+                  <th class="col-id">#</th>
+                  <th>Indicado</th>
+                  <th class="num">Valor</th>
+                  <th class="num">Comissão</th>
+                  <th>Status</th>
+                  <th>Criado</th>
+                </tr>
+              </thead>
+              <tbody>
+              <?php foreach ($list as $r): ?>
+                <?php
+                  $id   = (int)($r['id'] ?? 0);
+                  $name = (string)($r['member_name'] ?? ($r['member_email'] ?? ('#'.$r['user_id'] ?? '')));
+                  $amt  = (float)($r['amount'] ?? $r['amount_gross'] ?? 0);
+                  $com  = (float)($r['commission'] ?? $r['amount_commission'] ?? 0);
+                  $st   = (string)($r['status'] ?? 'pending');
+                  $dt   = (string)($r['created_at'] ?? '');
+                  $chip = ($st==='approved'
+                    ? 'chip-success'
+                    : ($st==='rejected'
+                      ? 'chip-failed'
+                      : ($st==='paid' ? 'chip-success' : 'chip-pending')));
+                ?>
+                <tr>
+                  <td class="col-id"><?= $id ?></td>
+                  <td><?= htmlspecialchars($name) ?></td>
+                  <td class="num"><?= $moeda($amt) ?></td>
+                  <td class="num"><strong><?= $moeda($com) ?></strong></td>
+                  <td><span class="chip <?= $chip ?>"><?= htmlspecialchars($st) ?></span></td>
+                  <td><?= htmlspecialchars($dt) ?></td>
+                </tr>
+              <?php endforeach; ?>
+              </tbody>
+            </table>
+          <?php endif; ?>
+        </div>
+      </div>
+    </section>
+  </div>
 </section>
 
 <style>
-/* ——— visual admin/glass, igual às outras telas ——— */
-.glass-card{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); padding:14px; border-radius:14px; color:#fff; }
-.muted{ color:#cfe1ff; opacity:.88; }
-.sect-title{ font-weight:800; color:#fff; }
-.sect-sub{ font-weight:800; color:#fff; }
+/* ===== Shell geral alinhado ao layout clean ===== */
+.affiliate-gains-page{
+  width:100%;
+  padding:24px 0 48px;
+}
+.affiliate-gains-inner{
+  width:min(92vw, 1120px);
+  margin-inline:auto;
+}
+.affiliate-gains-page .admin-main{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
 
-.card-head{ padding:16px 18px; }
-.head-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+/* Cards brancos e tipografia */
+.affiliate-gains-page .glass-card{
+  background:#ffffff;
+  border-radius:22px;
+  border:1px solid #e2e8f0;
+  box-shadow:
+    0 22px 60px rgba(15,23,42,.10),
+    0 0 0 1px rgba(148,163,184,.06);
+  padding:18px 20px;
+  color:#0f172a;
+}
+.affiliate-gains-page .muted{
+  color:#64748b;
+}
+.affiliate-gains-page .sect-title{
+  font-family:"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight:800;
+  font-size:1.3rem;
+  color:#0f172a;
+}
+.affiliate-gains-page .sect-sub{
+  font-family:"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight:700;
+  font-size:1rem;
+  color:#0f172a;
+}
+.affiliate-gains-page .card-head{
+  padding:18px 20px;
+}
+.affiliate-gains-page .head-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.affiliate-gains-page .sect-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
 
 /* KPIs */
-.kpis{ display:grid; gap:12px; grid-template-columns: repeat(4, minmax(0,1fr)); }
-@media (max-width: 1100px){ .kpis{ grid-template-columns:1fr 1fr; } }
-@media (max-width: 560px){ .kpis{ grid-template-columns:1fr; } }
-.kpi{ display:grid; gap:6px; }
-.kpi-top{ font-size:.9rem; color:#cfe1ff; opacity:.9; }
-.kpi-num{ font-size:1.6rem; font-weight:800; }
-.kpi-foot{ font-size:.9rem; }
-
-/* Tabela glass */
-.table-glass{ border:1px solid rgba(255,255,255,.14); border-radius:14px; overflow:hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
-.aff-table{ width:100%; border-collapse:separate; border-spacing:0; min-width:820px; color:#fff; background: rgba(255,255,255,.04); }
-.aff-table thead th{
-  position:sticky; top:0;
-  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.10));
-  color:#fff; font-weight:800;
-  padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.14);
+.affiliate-gains-page .kpis{
+  display:grid;
+  gap:12px;
+  grid-template-columns: repeat(4, minmax(0,1fr));
 }
-.aff-table td{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.10); }
-.aff-table .num{ text-align:right; } .aff-table .col-id{ width:56px; }
-.aff-table tbody tr{ background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03)); }
-.aff-table tbody tr + tr td{ border-top:1px solid rgba(255,255,255,.06); }
+@media (max-width: 1100px){
+  .affiliate-gains-page .kpis{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width: 560px){
+  .affiliate-gains-page .kpis{ grid-template-columns:1fr; }
+}
+.affiliate-gains-page .kpi{
+  display:grid;
+  gap:6px;
+}
+.affiliate-gains-page .kpi-top{
+  font-size:.85rem;
+  color:#6b7280;
+}
+.affiliate-gains-page .kpi-num{
+  font-size:1.6rem;
+  font-weight:800;
+  color:#0f172a;
+}
+.affiliate-gains-page .kpi-foot{
+  font-size:.85rem;
+}
 
-/* Chips de status (mesmas classes usadas no resto do admin) */
-.chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:.85rem; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10); color:#fff; }
-.chip-success{ background:rgba(86,207,139,.20); border-color:rgba(86,207,139,.35); }
-.chip-failed{  background:rgba(255,77,79,.18);  border-color:rgba(255,255,255,.35); }
-.chip-pending{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.25); }
+/* Botões */
+.affiliate-gains-page .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:9px 14px;
+  border-radius:999px;
+  border:1px solid #e2e8f0;
+  background:#0f172a;
+  color:#f9fafb;
+  font-weight:700;
+  font-size:.9rem;
+  text-decoration:none;
+  cursor:pointer;
+  transition:.12s ease;
+}
+.affiliate-gains-page .btn:hover{
+  filter:brightness(1.03);
+  box-shadow:0 10px 24px rgba(15,23,42,.16);
+}
+.affiliate-gains-page .btn:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+  box-shadow:none;
+}
+.affiliate-gains-page .btn--ghost{
+  background:#ffffff;
+  color:#0f172a;
+}
+.affiliate-gains-page .actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
 
-/* ====== Saques (apenas novas regras, sem alterar as existentes) ====== */
-.payout-form .row-3{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
-.payout-form .input-wrap{ display:flex; flex-direction:column; gap:6px; }
-.payout-form .field{ width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10); color:#fff; }
-.payout-form .actions{ margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.flash{ display:none; margin-top:10px; padding:10px 12px; border-radius:12px; font-weight:600; }
-.flash.is-ok{ background:rgba(86,207,139,.18); border:1px solid rgba(86,207,139,.35); color:#eaffef; }
-.flash.is-err{ background:rgba(255,77,79,.18);  border:1px solid rgba(255,77,79,.35); color:#ffecec; }
+/* Tabela clean */
+.affiliate-gains-page .table-glass{
+  border:1px solid #e2e8f0;
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow: inset 0 1px 0 rgba(148,163,184,.08);
+}
+.affiliate-gains-page .aff-table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  min-width:820px;
+  color:#0f172a;
+  background:#ffffff;
+}
+.affiliate-gains-page .aff-table thead th{
+  position:sticky;
+  top:0;
+  background:linear-gradient(180deg,#f8fafc,#e5edf8);
+  color:#0f172a;
+  font-weight:700;
+  font-size:.82rem;
+  padding:10px 12px;
+  border-bottom:1px solid #e2e8f0;
+}
+.affiliate-gains-page .aff-table td{
+  padding:10px 12px;
+  border-bottom:1px solid #e5e7eb;
+  font-size:.88rem;
+}
+.affiliate-gains-page .aff-table .num{
+  text-align:right;
+}
+.affiliate-gains-page .aff-table .col-id{
+  width:56px;
+}
+.affiliate-gains-page .aff-table tbody tr:nth-child(even){
+  background:#f9fafb;
+}
+
+/* Chips de status */
+.affiliate-gains-page .chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 9px;
+  border-radius:999px;
+  font-size:.78rem;
+  font-weight:600;
+  border:1px solid #e2e8f0;
+  background:#f9fafb;
+  color:#0f172a;
+}
+.affiliate-gains-page .chip-success{
+  background:rgba(16,185,129,.10);
+  border-color:rgba(16,185,129,.35);
+  color:#047857;
+}
+.affiliate-gains-page .chip-failed{
+  background:rgba(239,68,68,.10);
+  border-color:rgba(239,68,68,.35);
+  color:#b91c1c;
+}
+.affiliate-gains-page .chip-pending{
+  background:rgba(234,179,8,.10);
+  border-color:rgba(234,179,8,.35);
+  color:#92400e;
+}
+
+/* Saques: formulário */
+.affiliate-gains-page .payout-form .row-3{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:12px;
+}
+.affiliate-gains-page .payout-form .input-wrap{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.affiliate-gains-page .payout-form label{
+  font-size:.82rem;
+  font-weight:600;
+  color:#4b5563;
+}
+.affiliate-gains-page .payout-form .field{
+  width:100%;
+  padding:9px 11px;
+  border-radius:12px;
+  border:1px solid #d1d5db;
+  background:#f9fafb;
+  color:#0f172a;
+  font-size:.9rem;
+  outline:none;
+}
+.affiliate-gains-page .payout-form .field:focus{
+  border-color:#2563eb;
+  box-shadow:0 0 0 1px rgba(37,99,235,.18);
+}
+.affiliate-gains-page .payout-form .flash{
+  display:none;
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:12px;
+  font-weight:600;
+  font-size:.85rem;
+}
+.affiliate-gains-page .payout-form .flash.is-ok{
+  background:rgba(34,197,94,.08);
+  border:1px solid rgba(34,197,94,.45);
+  color:#166534;
+}
+.affiliate-gains-page .payout-form .flash.is-err{
+  background:rgba(239,68,68,.08);
+  border:1px solid rgba(239,68,68,.45);
+  color:#b91c1c;
+}
+
+/* Mobile */
 @media (max-width: 860px){
-  .payout-form .row-3{ grid-template-columns: 1fr; }
+  .affiliate-gains-page .payout-form .row-3{
+    grid-template-columns:1fr;
+  }
 }
-
-/* ====== MOBILE TWEAKS (<= 720px) — tabelas viram "cards" ====== */
 @media (max-width: 720px){
-  .glass-card{ padding:12px; }
-  .sect-head small{ width:100%; margin-top:4px; }
+  .affiliate-gains-page .glass-card{
+    padding:14px;
+  }
+  .affiliate-gains-page .sect-head small{
+    width:100%;
+    margin-top:4px;
+  }
+  .affiliate-gains-page .payout-form .actions{
+    justify-content:stretch;
+  }
+  .affiliate-gains-page .payout-form .actions .btn{
+    flex:1;
+  }
 
-  .payout-form .actions{ justify-content:stretch; }
-  .payout-form .actions .btn{ flex:1; }
-
-  /* Tabela -> Card */
-  .table-glass{ border:0; border-radius:0; overflow:visible; box-shadow:none; }
-  .aff-table{ min-width:0; background: transparent; }
-  .aff-table thead{ display:none; }
-  .aff-table, .aff-table tbody, .aff-table tr, .aff-table td{ display:block; width:100%; }
-  .aff-table tbody tr{
-    background: rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.14);
+  /* Tabelas viram "cards" */
+  .affiliate-gains-page .table-glass{
+    border:0;
+    border-radius:0;
+    overflow:visible;
+    box-shadow:none;
+  }
+  .affiliate-gains-page .aff-table{
+    min-width:0;
+    background:transparent;
+  }
+  .affiliate-gains-page .aff-table thead{
+    display:none;
+  }
+  .affiliate-gains-page .aff-table,
+  .affiliate-gains-page .aff-table tbody,
+  .affiliate-gains-page .aff-table tr,
+  .affiliate-gains-page .aff-table td{
+    display:block;
+    width:100%;
+  }
+  .affiliate-gains-page .aff-table tbody tr{
+    background:#ffffff;
+    border:1px solid #e2e8f0;
     border-radius:12px;
     padding:10px 12px;
     margin:10px 0;
   }
-  .aff-table td{
+  .affiliate-gains-page .aff-table td{
     border:0;
     padding:6px 0;
-    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
   }
-  .aff-table td.num{ text-align:left; }
-  .aff-table .col-id{ width:auto; }
+  .affiliate-gains-page .aff-table td.num{
+    text-align:left;
+  }
+  .affiliate-gains-page .aff-table .col-id{
+    width:auto;
+  }
 
-  /* Rótulos por coluna — HISTÓRICO DE SAQUES (tbody #payouts-body tem 5 colunas) */
-  #payouts-body td:nth-child(1)::before{ content:"#"; font-weight:800; color:#dfeaff; }
-  #payouts-body td:nth-child(2)::before{ content:"Data"; font-weight:800; color:#dfeaff; }
-  #payouts-body td:nth-child(3)::before{ content:"Valor"; font-weight:800; color:#dfeaff; }
-  #payouts-body td:nth-child(4)::before{ content:"Status"; font-weight:800; color:#dfeaff; }
-  #payouts-body td:nth-child(5)::before{ content:"Chave PIX"; font-weight:800; color:#dfeaff; }
+  /* Rótulos – histórico de saques (#payouts-body) */
+  .affiliate-gains-page #payouts-body td:nth-child(1)::before{ content:"#"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page #payouts-body td:nth-child(2)::before{ content:"Data"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page #payouts-body td:nth-child(3)::before{ content:"Valor"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page #payouts-body td:nth-child(4)::before{ content:"Status"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page #payouts-body td:nth-child(5)::before{ content:"Chave PIX"; font-weight:700; color:#6b7280; }
 
-  /* Rótulos por coluna — CONVERSÕES (qualquer tbody que não seja #payouts-body; 6 colunas) */
-  .aff-table tbody:not(#payouts-body) td:nth-child(1)::before{ content:"#"; font-weight:800; color:#dfeaff; }
-  .aff-table tbody:not(#payouts-body) td:nth-child(2)::before{ content:"Indicado"; font-weight:800; color:#dfeaff; }
-  .aff-table tbody:not(#payouts-body) td:nth-child(3)::before{ content:"Valor"; font-weight:800; color:#dfeaff; }
-  .aff-table tbody:not(#payouts-body) td:nth-child(4)::before{ content:"Comissão"; font-weight:800; color:#dfeaff; }
-  .aff-table tbody:not(#payouts-body) td:nth-child(5)::before{ content:"Status"; font-weight:800; color:#dfeaff; }
-  .aff-table tbody:not(#payouts-body) td:nth-child(6)::before{ content:"Criado"; font-weight:800; color:#dfeaff; }
+  /* Rótulos – conversões (tbody diferente de #payouts-body) */
+  .affiliate-gains-page .aff-table tbody:not(#payouts-body) td:nth-child(1)::before{ content:"#"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page .aff-table tbody:not(#payouts-body) td:nth-child(2)::before{ content:"Indicado"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page .aff-table tbody:not(#payouts-body) td:nth-child(3)::before{ content:"Valor"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page .aff-table tbody:not(#payouts-body) td:nth-child(4)::before{ content:"Comissão"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page .aff-table tbody:not(#payouts-body) td:nth-child(5)::before{ content:"Status"; font-weight:700; color:#6b7280; }
+  .affiliate-gains-page .aff-table tbody:not(#payouts-body) td:nth-child(6)::before{ content:"Criado"; font-weight:700; color:#6b7280; }
 }
 </style>
 
@@ -286,7 +543,7 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
   const moneyBR = v => (new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})).format(v||0);
   const qs = s => document.querySelector(s);
 
-  // ====== Histórico de saques ======
+  // ===== Histórico de saques =====
   async function loadPayouts(){
     const tbody = qs('#payouts-body');
     if(!tbody) return;
@@ -311,7 +568,7 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
     }
   }
 
-  // ====== Solicitação de saque ======
+  // ===== Solicitação de saque =====
   qs('#payout-form')?.addEventListener('submit', async ()=>{
     const flash  = qs('#payout-flash');
     const btn    = qs('#payout-submit');
@@ -346,7 +603,7 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
         })[code] || 'Não foi possível solicitar o saque.';
         throw new Error(msg);
       }
-      flashMsg(flash,'Solicitação enviada com sucesso! 🎉','ok');
+      flashMsg(flash,'Solicitação enviada com sucesso!','ok');
       qs('#payout-form').reset();
       loadPayouts();
     }catch(e){
@@ -381,7 +638,10 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
     clearTimeout(node._t);
     node._t = setTimeout(()=> node.style.display='none', 6000);
   }
-  function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
 
   // inicia
   loadPayouts();

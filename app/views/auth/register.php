@@ -11,8 +11,10 @@ $PAGE_TITLE = 'Criar conta • Aviv+';
 $PAGE_CLASS = 'site-page'; // usa o fundo/tema público
 ?>
 
+<div style="width: 100%">
 <?php require __DIR__ . '/../_partials/_head.php'; ?>
 <?php require __DIR__ . '/../_partials/_header.php'; ?>
+</div>
 
 <style>
 /* Mesmo fundo clean do login */
@@ -312,7 +314,9 @@ body.site-page {
   </div>
 </section>
 
+<div style="width: 100%">
 <?php require __DIR__ . '/../_partials/_footer.php'; ?>
+</div>
 
 <script>
 (function(){

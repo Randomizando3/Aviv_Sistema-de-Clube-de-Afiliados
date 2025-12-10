@@ -5,24 +5,36 @@
   <section class="admin-main">
     <div class="glass-card">
       <h1 class="sect-title">Admin • Planos</h1>
-      <p class="muted">Gerencie os planos (id usado nas assinaturas, ex.: <code>start</code>, <code>plus</code>, <code>prime</code>).</p>
+      <p class="muted">
+        Gerencie os planos (id usado nas assinaturas, ex.: <code>start</code>, <code>plus</code>, <code>prime</code>).
+      </p>
     </div>
 
     <!-- Novo plano -->
     <div class="glass-card" style="margin-top:12px">
       <h2 class="sect-sub">Novo plano</h2>
       <form id="plan-new" class="form-grid" action="#" onsubmit="return false;">
-        <div class="input-wrap"><input class="field" id="pn-id"   type="text"   placeholder="ID (ex.: start)" required></div>
-        <div class="input-wrap"><input class="field" id="pn-name" type="text"   placeholder="Nome (ex.: Start)" required></div>
-        <div class="input-wrap"><input class="field" id="pn-pm"   type="number" step="0.01" min="0" placeholder="Preço mensal"></div>
-        <div class="input-wrap"><input class="field" id="pn-py"   type="number" step="0.01" min="0" placeholder="Preço anual"></div>
+        <div class="input-wrap">
+          <input class="field" id="pn-id"   type="text"   placeholder="ID (ex.: start)" required>
+        </div>
+        <div class="input-wrap">
+          <input class="field" id="pn-name" type="text"   placeholder="Nome (ex.: Start)" required>
+        </div>
+        <div class="input-wrap">
+          <input class="field" id="pn-pm"   type="number" step="0.01" min="0" placeholder="Preço mensal">
+        </div>
+        <div class="input-wrap">
+          <input class="field" id="pn-py"   type="number" step="0.01" min="0" placeholder="Preço anual">
+        </div>
         <div class="input-wrap">
           <select class="field" id="pn-status">
             <option value="active">Ativo</option>
             <option value="inactive">Inativo</option>
           </select>
         </div>
-        <div class="form-actions"><button class="btn btn-sm" id="btn-create">Criar</button></div>
+        <div class="form-actions">
+          <button class="btn btn-sm" id="btn-create">Criar</button>
+        </div>
       </form>
     </div>
 
@@ -391,109 +403,266 @@ let PENDING_BADGE_PLAN_ID = null;
     PENDING_BADGE_PLAN_ID = j.pendingBadge?.plan_id || null;
 
     document.getElementById('cur-wrap').style.display='flex';
-    document.getElementById('cur-name').textContent = (j.plan?.name || j.subscription?.plan_id || '—');
+    document.getElementById('cur-name').textContent =
+      (j.plan?.name || j.subscription?.plan_id || '—');
     const amt = +(j.subscription?.amount||0);
-    document.getElementById('cur-amount').textContent = amt ? ('R$ ' + amt.toFixed(2).replace('.',',')) : '—';
-    document.getElementById('cur-meta').textContent = (j.subscription?.renew_at ? ('Renova em ' + j.subscription.renew_at) : 'Sem renovação');
+    document.getElementById('cur-amount').textContent =
+      amt ? ('R$ ' + amt.toFixed(2).replace('.',',')) : '—';
+    document.getElementById('cur-meta').textContent =
+      (j.subscription?.renew_at ? ('Renova em ' + j.subscription.renew_at) : 'Sem renovação');
   }catch(e){}
 })();
-
-
 </script>
 
 <style>
 /* ===== util ===== */
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
 .ta-r{ text-align:right; }
 .ta-c{ text-align:center; }
 
 /* ===== largura idêntica ao Header ===== */
 .container.admin{
-  width: min(92vw, var(--container)) !important;
+  width:min(92vw, var(--container)) !important;
   margin-inline:auto;
-  padding-inline:0; /* alinha exatamente com o header */
+  padding-inline:0;
 }
 
-/* ===== base visual ===== */
-.glass-card{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); padding:14px; border-radius:14px; color:#fff; }
-.muted{ opacity:.86; font-size:.88rem; color:#cfe1ff; }
-.sect-title{ margin:0 0 10px; font-weight:800; }
-.sect-sub{ margin:0 0 8px; font-weight:800; color:#fff; }
+/* ===== base visual clean ===== */
+.glass-card{
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(15,23,42,.06);
+  padding:18px;
+  border-radius:18px;
+  color:var(--text,#111322);
+  box-shadow:0 18px 40px rgba(15,23,42,.06);
+}
+.sect-title{
+  margin:0 0 8px;
+  font-weight:800;
+  color:var(--text,#111322);
+}
+.sect-sub{
+  margin:0 0 8px;
+  font-weight:700;
+  color:var(--text,#111322);
+}
+.muted{
+  color:var(--muted,#6b7280);
+  opacity:1;
+  font-size:.9rem;
+}
 
 /* ===== form novo plano ===== */
-.form-grid{ display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:10px; }
-@media (max-width:980px){ .form-grid{ grid-template-columns:1fr 1fr; } .form-actions{ grid-column:1/-1; } }
-.field{ width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08); color:#eaf3ff; outline:none; }
-.form-actions{ display:flex; align-items:center; gap:8px; }
-.btn{ padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10); color:#fff; cursor:pointer }
-.btn.btn-sm{ padding:8px 12px }
-.btn--ghost{ background:transparent; }
-.alert{ margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.18); color:#fff; background:rgba(255,255,255,.06); }
+.form-grid{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:10px;
+}
+@media (max-width:980px){
+  .form-grid{ grid-template-columns:1fr 1fr; }
+  .form-actions{ grid-column:1/-1; }
+}
+.field{
+  width:100%;
+  box-sizing:border-box;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid #d0d7e2;
+  background:#ffffff;
+  color:#111322;
+  outline:none;
+}
+.form-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 
-/* ===== tabela (desktop) com overflow otimizado ===== */
+/* botões */
+.btn{
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid #d0d7e2;
+  background:#ffffff;
+  color:#111322;
+  cursor:pointer;
+}
+.btn-sm{ padding:8px 12px; }
+.btn--ghost{
+  background:transparent;
+  border:1px solid #d0d7e2;
+}
+.btn.danger,
+.btn.btn--ghost.danger{
+  border-color:#fecaca;
+  color:#b91c1c;
+}
+
+/* alert */
+.alert{
+  margin-top:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:#f9fafb;
+  border:1px solid #e5e7eb;
+  color:#111322;
+}
+
+/* ===== tabela (desktop) ===== */
 .only-desktop{ display:block; }
 .only-mobile{ display:none; }
 
 .table-wrap{
-  position:relative; overflow:auto; -webkit-overflow-scrolling:touch; border-radius:10px;
+  position:relative;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  border-radius:14px;
+  background:#ffffff;
 }
-.table-wrap::before, .table-wrap::after{
-  content:""; position:absolute; top:0; bottom:0; width:18px; pointer-events:none; z-index:2; display:none;
+
+/* sombras suaves nas bordas ao rolar */
+.table-wrap::before,
+.table-wrap::after{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:18px;
+  pointer-events:none;
+  z-index:2;
+  display:none;
 }
-.table-wrap.shadow-left::before{ display:block; left:0; background:linear-gradient(to right, rgba(6,26,43,.85), rgba(6,26,43,0)); }
-.table-wrap.shadow-right::after{ display:block; right:0; background:linear-gradient(to left, rgba(6,26,43,.85), rgba(6,26,43,0)); }
+.table-wrap.shadow-left::before{
+  display:block;
+  left:0;
+  background:linear-gradient(to right, rgba(148,163,184,.5), rgba(148,163,184,0));
+}
+.table-wrap.shadow-right::after{
+  display:block;
+  right:0;
+  background:linear-gradient(to left, rgba(148,163,184,.5), rgba(148,163,184,0));
+}
 
 .tbl-plans{
-  width:100%; border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:980px; background:rgba(255,255,255,.04);
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  table-layout:fixed;
+  min-width:980px;
+  background:#ffffff;
 }
 .tbl-plans thead th{
-  position:sticky; top:0; z-index:1; text-align:left; font-weight:800; color:#1c1130; background:#fff; padding:10px 8px; border-bottom:1px solid rgba(0,0,0,.06);
+  position:sticky;
+  top:0;
+  z-index:1;
+  text-align:left;
+  font-weight:700;
+  color:#111322;
+  background:#f8fafc;
+  padding:10px 8px;
+  border-bottom:1px solid #e5e7eb;
 }
-.tbl-plans td{ padding:10px 8px; vertical-align:middle; white-space:nowrap; }
+.tbl-plans td{
+  padding:10px 8px;
+  vertical-align:middle;
+  white-space:nowrap;
+  border-bottom:1px solid #eef2f7;
+}
 .tbl-plans td:nth-child(2){ white-space:normal; } /* Nome pode quebrar */
 
 /* inputs da tabela */
 .cell-field{
-  width:100%; box-sizing:border-box; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08); color:#eaf3ff; outline:none;
+  width:100%;
+  box-sizing:border-box;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid #d0d7e2;
+  background:#ffffff;
+  color:#111322;
 }
 .tbl-plans input[type="number"]{ appearance:textfield; }
 .tbl-plans input[type="number"]::-webkit-outer-spin-button,
-.tbl-plans input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.tbl-plans input[type="number"]::-webkit-inner-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
 
 /* linha extra de descrição */
-.data-row + .desc-row td{ border-bottom:1px dashed rgba(255,255,255,.22); padding-bottom:14px; }
-.desc-row td{ padding-top:0 }
-.desc-grid{ display:grid; grid-template-columns:1fr; gap:12px; }
+.data-row + .desc-row td{ padding-bottom:14px; }
+.desc-row td{ padding-top:0; border-bottom:1px solid #eef2f7; }
+.desc-grid{ display:grid; grid-template-columns:1fr; gap:8px; }
 
-/* ações */
-.tbl-plans td.actions{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap; }
-.icon-btn{
-  display:inline-flex; align-items:center; justify-content:center; width:36px; height:34px; border-radius:10px;
-  border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#fff; cursor:pointer;
-  transition: filter .15s ease, transform .06s ease, background .2s ease;
+/* ações (ícones) */
+.tbl-plans td.actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:nowrap;
 }
-.icon-btn:hover{ filter:brightness(1.05) }
-.icon-btn:active{ transform:translateY(1px) }
-.icon-btn.danger{ background:rgba(255,77,79,.12); border-color:rgba(255,77,79,.35); color:#fff }
+.icon-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:36px;
+  height:34px;
+  border-radius:10px;
+  border:1px solid #d0d7e2;
+  background:#ffffff;
+  color:#111322;
+  cursor:pointer;
+  transition:background .15s ease, transform .05s ease, box-shadow .15s ease;
+}
+.icon-btn:hover{
+  background:#f3f4ff;
+  box-shadow:0 2px 6px rgba(15,23,42,.08);
+}
+.icon-btn:active{ transform:translateY(1px); }
+.icon-btn.danger{
+  border-color:#fecaca;
+  background:#fef2f2;
+  color:#b91c1c;
+}
 
 /* ===== mobile (≤ 720px): cards ===== */
 @media (max-width:720px){
   .only-desktop{ display:none; }
   .only-mobile{ display:block !important; }
 
-  .plans-cards{ display:grid; gap:10px; }
+  .plans-cards{
+    display:grid;
+    gap:12px;
+  }
   .plan-card{
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:12px;
-    background:rgba(255,255,255,.06);
-    padding:12px;
+    border:1px solid #d0d7e2;
+    border-radius:16px;
+    background:#ffffff;
+    padding:14px;
+    box-shadow:0 10px 25px rgba(15,23,42,.04);
   }
   .pc-head{
-    display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:8px;
   }
   .pc-actions{ display:flex; gap:8px; }
-  .grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  @media (max-width:480px){ .grid-2{ grid-template-columns:1fr; } }
-  .pc-foot{ display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+  .grid-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  @media (max-width:480px){
+    .grid-2{ grid-template-columns:1fr; }
+  }
+  .pc-foot{
+    display:flex;
+    gap:8px;
+    justify-content:flex-end;
+    margin-top:10px;
+  }
 }
 </style>

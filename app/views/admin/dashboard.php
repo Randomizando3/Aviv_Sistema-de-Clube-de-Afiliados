@@ -43,9 +43,11 @@
 <script>
 (async function(){
   const moneyBR = (v)=> 'R$ ' + (Number(v||0)).toFixed(2).replace('.', ',');
+
   try{
     const r = await fetch('/?r=api/admin/stats/overview');
     let j; try { j = await r.json(); } catch(e){ j = { error:'Erro de resposta' }; }
+
     if(!r.ok){ throw new Error(j.error || 'Falha ao carregar'); }
 
     document.getElementById('kpi-users').textContent    = j.users ?? '—';
@@ -53,6 +55,7 @@
     document.getElementById('kpi-plans').textContent    = j.plans ?? '—';
     document.getElementById('kpi-benefits').textContent = j.benefits ?? '—';
     document.getElementById('kpi-mrr').textContent      = moneyBR(j.mrr_30d);
+
   }catch(e){
     const box = document.getElementById('dash-alert');
     box.textContent = 'Erro: ' + (e.message || e);
@@ -65,48 +68,76 @@
 <style>
 /* ===== Largura igual ao Header ===== */
 .container.admin{
-  width: min(92vw, var(--container)) !important;
-  margin-inline: auto;
-  padding-inline: 0;
+  width:min(92vw, var(--container)) !important;
+  margin-inline:auto;
+  padding-inline:0;
 }
 
-/* ===== Cartões/Tipografia base (coerente com as demais telas) ===== */
+/* ===== Cards / tipografia alinhados ao resto do painel ===== */
 .glass-card{
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.10);
-  padding: 14px;
-  border-radius: 14px;
-  color: #fff;
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(15,23,42,.06);
+  padding:16px 18px;
+  border-radius:18px;
+  color:var(--text, #111322);     /* texto escuro, visível */
+  box-shadow:0 18px 40px rgba(15,23,42,.06);
 }
-.sect-title{ margin:0 0 10px; font-weight:800; }
-.muted{ opacity:.86; font-size:.9rem; color:#cfe1ff; }
+
+.sect-title{
+  margin:0 0 8px;
+  font-weight:800;
+  color:var(--text, #111322);
+}
+
+.muted{
+  font-size:.9rem;
+  color:var(--muted, #6b7280);    /* cinza suave, não branco */
+  opacity:1;
+}
+
 .alert{
-  margin-top:12px; padding:10px 12px; border-radius:10px;
-  background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#fff;
+  margin-top:12px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:#fff;
+  border:1px solid rgba(15,23,42,.08);
+  color:var(--text, #111322);
 }
 
 /* ===== KPIs ===== */
 .kpis-grid{
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-.kpi-card{ display:grid; gap:4px; }
-.kpi-label{ font-weight:700; }
-.kpi{
-  font-weight: 800;
-  font-size: clamp(1.2rem, 1rem + 1vw, 1.6rem);
-  line-height: 1.15;
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:14px;
 }
 
-/* Quebras responsivas harmoniosas */
-@media (max-width: 1200px){
-  .kpis-grid{ grid-template-columns: repeat(3, 1fr); }
+.kpi-card{
+  display:grid;
+  gap:6px;
+  padding:16px;
 }
-@media (max-width: 820px){
-  .kpis-grid{ grid-template-columns: repeat(2, 1fr); }
+
+.kpi-label{
+  font-weight:600;
+  color:var(--muted, #6b7280);
 }
-@media (max-width: 520px){
-  .kpis-grid{ grid-template-columns: 1fr; }
+
+.kpi{
+  font-weight:800;
+  font-size:clamp(1.25rem, 1rem + 1.2vw, 1.7rem);
+  line-height:1.1;
+  letter-spacing:-0.4px;
+  color:var(--text, #111322);
+}
+
+/* ===== Responsivo ===== */
+@media (max-width:1200px){
+  .kpis-grid{ grid-template-columns:repeat(3,1fr); }
+}
+@media (max-width:820px){
+  .kpis-grid{ grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:520px){
+  .kpis-grid{ grid-template-columns:1fr; }
 }
 </style>

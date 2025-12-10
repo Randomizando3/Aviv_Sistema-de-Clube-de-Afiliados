@@ -15,18 +15,10 @@
       </div>
     </div>
 
-    <!-- Lista (desktop: tabela) -->
+    <!-- Lista (desktop) -->
     <div class="glass-card only-desktop" style="margin-top:12px">
       <div class="table-wrap" role="region" aria-label="Tabela de usuários">
         <table class="tbl-users">
-          <colgroup>
-            <col style="width:70px" />
-            <col style="width:26%" />
-            <col />
-            <col style="width:200px" />
-            <col style="width:170px" />
-            <col style="width:160px" />
-          </colgroup>
           <thead>
             <tr>
               <th>#</th>
@@ -44,9 +36,9 @@
       </div>
     </div>
 
-    <!-- Lista (mobile: cards) -->
+    <!-- Lista mobile -->
     <div class="glass-card only-mobile" style="margin-top:12px; display:none">
-      <div id="adm-users-cards" class="users-cards" role="list" aria-label="Lista de usuários"></div>
+      <div id="adm-users-cards" class="users-cards" role="list"></div>
     </div>
 
     <div id="adm-alert" class="alert" role="status" aria-live="polite" style="display:none"></div>
@@ -63,8 +55,7 @@ const esc = s => (s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt
 function roleOption(v, label, cur){ return `<option value="${v}" ${cur===v?'selected':''}>${label}</option>`; }
 function roleChip(role){
   const map = { admin:'Admin', member:'Membro', partner:'Parceiro', affiliate:'Afiliado' };
-  const lab = map[role] || role;
-  return `<span class="chip chip--${role}">${esc(lab)}</span>`;
+  return `<span class="chip chip--${role}">${esc(map[role] || role)}</span>`;
 }
 
 async function loadUsers() {
@@ -87,10 +78,11 @@ async function loadUsers() {
     return;
   }
 
-  // Desktop
-  tbody.innerHTML = list.map(u => {
-    const role = (u.role || 'member').toLowerCase();
-    return `
+  // DESKTOP
+  tbody.innerHTML = list
+    .map(u => {
+      const role = (u.role || 'member').toLowerCase();
+      return `
       <tr>
         <td>${u.id}</td>
         <td>${esc(u.name||'')}</td>
@@ -111,20 +103,21 @@ async function loadUsers() {
           <button class="btn btn-sm btn--ghost" disabled>Entrar como</button>
         </td>
       </tr>`;
-  }).join('');
+    }).join('');
 
-  // Mobile
+  // MOBILE
   cardsEl.innerHTML = list.map(u=>{
     const role = (u.role || 'member').toLowerCase();
     return `
-      <article class="user-card" role="listitem" data-id="${u.id}">
+      <article class="user-card" role="listitem">
         <header class="uc-head">
           <strong>#${u.id}</strong>
-          <span class="chip chip--${role}">${role}</span>
+          ${roleChip(role)}
         </header>
         <p><strong>Nome:</strong> ${esc(u.name||'')}</p>
         <p><strong>Email:</strong> ${esc(u.email||'')}</p>
         <p><strong>Criado:</strong> ${esc(u.created_at||'')}</p>
+
         <div class="uc-role">
           <label>Papel:</label>
           <select class="field role-select" data-id="${u.id}">
@@ -134,6 +127,7 @@ async function loadUsers() {
             ${roleOption('affiliate','Afiliado',role)}
           </select>
         </div>
+
         <div class="uc-actions">
           <button class="btn btn-sm btn--ghost" disabled>Entrar como</button>
         </div>
@@ -148,15 +142,16 @@ async function setRole(id, role){
     body:new URLSearchParams({id, role})
   });
   let j; try { j = await r.json(); } catch(e){ j={error:'Erro na resposta'}; }
+
   if(!r.ok){ showAlert(j.error||'Falha ao alterar papel'); return; }
-  showAlert('Papel atualizado: ' + role.toUpperCase());
+  showAlert('Papel atualizado!');
   await loadUsers();
 }
 
 function showAlert(msg){
   alertBox.style.display='block';
   alertBox.textContent = msg;
-  setTimeout(()=>{ alertBox.style.display='none'; }, 1800);
+  setTimeout(()=> alertBox.style.display='none', 1800);
 }
 function showError(msg){
   tbody.innerHTML = `<tr><td colspan="6" class="muted" style="text-align:center;padding:16px">${esc(msg)}</td></tr>`;
@@ -171,105 +166,129 @@ q?.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); loa
 document.addEventListener('change', e=>{
   const sel = e.target.closest('.role-select');
   if(!sel) return;
-  const id = sel.dataset.id;
-  const role = sel.value;
-  setRole(id, role);
+  setRole(sel.dataset.id, sel.value);
 });
 
 loadUsers();
 </script>
 
 <style>
-:root{
-  --combo-bg:   #281B3E;           /* roxo primário (igual às outras combos) */
-  --combo-bg-2: #201431;           /* roxo escuro */
-  --combo-bd:   rgba(186,126,255,.35);
-}
-
-/* ===== largura igual Header ===== */
+/* ===== container igual ao header ===== */
 .container.admin{
   width:min(92vw, var(--container)) !important;
   margin-inline:auto;
   padding-inline:0;
 }
 
-/* base */
-.glass-card{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); padding:14px; border-radius:14px; color:#fff; }
-.sect-title{ margin:0 0 10px; font-weight:800; }
-.muted{ opacity:.85; font-size:.9rem; color:#cfe1ff; }
+/* ===== cards claros, estilo clean ===== */
+.glass-card{
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(15,23,42,.06);
+  padding:18px;
+  border-radius:18px;
+  color:var(--text, #111322);
+  box-shadow:0 18px 40px rgba(15,23,42,.06);
+}
+
+.sect-title{
+  margin:0 0 8px;
+  font-weight:800;
+  color:var(--text, #111322);
+}
+
+.muted{
+  color:var(--muted,#6b7280);
+  opacity:1;
+  font-size:.9rem;
+}
 
 /* toolbar */
 .adm-toolbar{ margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
 .field{
   width:min(520px,100%);
-  padding:10px 12px; border-radius:10px;
-  border:1px solid rgba(255,255,255,.20); background:rgba(255,255,255,.08);
-  color:#eaf3ff; outline:none;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid #d0d7e2;
+  background:#fff;
+  color:#111322;
 }
-.tool-actions{ display:flex; gap:8px }
+
+/* botões */
+.btn{
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid #d0d7e2;
+  background:#fff;
+  color:#111322;
+  cursor:pointer;
+}
+.btn-sm{ padding:8px 12px; }
+.btn--ghost{
+  background:transparent;
+  border:1px solid #d0d7e2;
+}
 
 /* tabela */
-.only-desktop{ display:block; }
-.only-mobile{ display:none; }
-.table-wrap{ overflow:auto; -webkit-overflow-scrolling:touch; }
-.tbl-users{ width:100%; border-collapse:separate; border-spacing:0; min-width:920px; background:rgba(255,255,255,.04); }
-.tbl-users thead th{ background:#fff; color:#281B3E; font-weight:800; padding:10px 8px; text-align:left; white-space:nowrap; }
-.tbl-users tbody td{ padding:10px 8px; border-bottom:1px dashed rgba(255,255,255,.18); vertical-align:middle; }
+.table-wrap{ overflow:auto; }
+.tbl-users{
+  width:100%; border-collapse:separate; border-spacing:0;
+  min-width:920px;
+  background:#fff;
+  border-radius:14px;
+}
+.tbl-users thead th{
+  background:#f8fafc;
+  color:#111322;
+  font-weight:700;
+  padding:10px;
+  border-bottom:1px solid #e5e7eb;
+}
+.tbl-users tbody td{
+  padding:10px;
+  border-bottom:1px solid #f1f5f9;
+}
 
-/* célula de papel: chip + combobox roxa */
-.role-cell{ display:flex; align-items:center; gap:10px; }
+/* chips */
+.chip{
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:.8rem;
+  font-weight:600;
+  color:#111;
+  border:1px solid #e5e7eb;
+}
+.chip--admin{ background:#ffe5e5; }
+.chip--partner{ background:#fff4d6; }
+.chip--affiliate{ background:#d6f6d6; }
+.chip--member{ background:#eef2ff; }
 
-/* chips (status) — mantém neutro para diferenciar do select roxo */
-.chip{ display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18); font-size:.85rem; }
-.chip--admin{ background:rgba(255,77,79,.15); border-color:rgba(255,77,79,.35) }
-.chip--partner{ background:rgba(255,193,7,.18); border-color:rgba(255,193,7,.35) }
-.chip--affiliate{ background:rgba(76,175,80,.18); border-color:rgba(76,175,80,.35) }
-.chip--member{ background:rgba(255,255,255,.10) }
-
-/* SELECT (combobox) com tema roxo e "botão" (seta) destacado */
+/* select papel */
 .role-select{
-  appearance:none; -webkit-appearance:none; -moz-appearance:none;
-  padding:8px 38px 8px 12px;
+  padding:8px 32px 8px 12px;
   border-radius:10px;
-  background:var(--combo-bg);
-  color:#f1e9ff;
-  border:1px solid var(--combo-bd);
-  cursor:pointer;
-  font: inherit;
-  line-height:1.2;
-  position:relative;
-
-  /* seta (botão para acionar a combo) com destaque lilás */
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23d7c0ff' d='M7 10l5 5 5-5z'/></svg>");
-  background-repeat:no-repeat;
-  background-position:right 10px center;
+  border:1px solid #d0d7e2;
+  background:#fff;
+  color:#111;
 }
-.role-select:hover{ filter:brightness(1.03); }
-.role-select:focus{
-  outline:none;
-  box-shadow:0 0 0 2px rgba(186,126,255,.55);
-}
-
-/* ações */
-.row-actions{ display:flex; gap:8px; }
-.btn{ padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.10); color:#fff; cursor:pointer }
-.btn.btn-sm{ padding:8px 12px }
-.btn--ghost{ background:transparent }
-.alert{ margin-top:12px; padding:10px 12px; border-radius:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); color:#fff }
 
 /* mobile cards */
+.only-mobile{ display:none; }
 @media (max-width:720px){
   .only-desktop{ display:none; }
   .only-mobile{ display:block !important; }
 
-  .users-cards{ display:grid; gap:10px; }
-  .user-card{ border:1px solid rgba(255,255,255,.12); border-radius:12px; background:rgba(255,255,255,.06); padding:12px; }
-  .uc-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; text-transform:capitalize; }
+  .users-cards{ display:grid; gap:12px; }
+  .user-card{
+    background:#fff;
+    border-radius:14px;
+    padding:14px;
+    border:1px solid #d0d7e2;
+  }
+  .uc-head{
+    display:flex; justify-content:space-between; margin-bottom:8px;
+    font-weight:700;
+  }
   .uc-role{ margin-top:8px; }
-  .uc-actions{ margin-top:8px; display:flex; justify-content:flex-end; }
-
-  /* mantém o mesmo tema roxo no select do card */
-  .user-card .role-select{ width:100%; }
 }
 </style>

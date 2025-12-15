@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Planos • Aviv+</title>
-  <meta name="description" content="Compare os planos Individual, Familiar e Empresarial e assine o que combina com você." />
+  <meta name="description" content="Compare os planos Individual e Familiar — e as condições de contratação empresarial — e assine o que combina com você." />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
 
@@ -322,7 +322,9 @@
     <div class="container plans-head">
       <div class="section__head section__head--center">
         <h1 class="section__title">Planos para cada momento</h1>
-        <p class="section__desc">Individual, Familiar e Empresarial — escolha o ideal e comece a usar sem burocracia.</p>
+        <p class="section__desc">
+          Compare <strong>Individual</strong> e <strong>Familiar</strong> — e veja também as <strong>condições de contratação empresarial</strong> (a partir de 3 vidas).
+        </p>
       </div>
 
       <!-- Destaque: Por que o plano familiar compensa -->
@@ -341,7 +343,7 @@
             Por <small>R$</small> 99,90 <small>/mês no plano Familiar</small>
           </div>
           <span class="comparison-highlight__note">
-            Valores e condições promocionais sujeitos a alteração. Consulte nossa equipe para mais detalhes.
+            Valores e condições promocionais sujeitos a alteração. Consulte a equipe para regras vigentes.
           </span>
         </div>
       </div>
@@ -363,10 +365,10 @@
           <ul class="ticklist" style="margin:6px 0 8px">
             <li>Clínico Geral 24h/7</li>
             <li>Pedidos de exames, receitas e encaminhamentos</li>
-            <li>Consultas presenciais com desconto</li>
+            <li>Consultas presenciais a preço popular</li>
             <li>Seguro de Acidentes Pessoais</li>
             <li>Sorteio mensal</li>
-            <li>Assistência funeral individual</li>
+            <li>Assistência funeral (individual)</li>
             <li>Assistência residencial</li>
             <li>Clube de vantagens</li>
             <li>Desconto em medicamentos</li>
@@ -385,10 +387,10 @@
           <ul class="ticklist" style="margin:6px 0 8px">
             <li>Clínico Geral 24h/7</li>
             <li>Pedidos de exames, receitas e encaminhamentos</li>
-            <li>Consultas presenciais com desconto</li>
+            <li>Consultas presenciais a preço popular</li>
             <li>Seguro de Acidentes Pessoais</li>
             <li>Sorteio mensal</li>
-            <li>Assistência funeral familiar</li>
+            <li>Assistência funeral (familiar)</li>
             <li>Assistência residencial</li>
             <li>Clube de vantagens</li>
             <li>Desconto em medicamentos</li>
@@ -396,20 +398,20 @@
           <a class="btn btn--blueGrad btn--lg" href="/?r=auth/register">Assine Agora</a>
         </article>
 
-        <!-- Empresarial Individual -->
+        <!-- Contratação Empresarial — Individual -->
         <article class="plan-card reveal">
           <header>
-            <h3>Empresarial Individual <small>(a partir de 3 vidas)</small></h3>
+            <h3>Individual <small>(contratação empresarial – a partir de 3 vidas)</small></h3>
             <div class="price"><small>R$</small>39,90 <small>/mês</small></div>
             <small class="muted">Por colaborador</small>
           </header>
           <ul class="ticklist" style="margin:6px 0 8px">
             <li>Clínico Geral 24h/7</li>
             <li>Pedidos de exames, receitas e encaminhamentos</li>
-            <li>Consultas presenciais com desconto</li>
+            <li>Consultas presenciais a preço popular</li>
             <li>Seguro de Acidentes Pessoais</li>
             <li>Sorteio mensal</li>
-            <li>Assistência funeral individual</li>
+            <li>Assistência funeral (individual)</li>
             <li>Assistência residencial</li>
             <li>Clube de vantagens</li>
             <li>Desconto em medicamentos</li>
@@ -417,20 +419,20 @@
           <a class="btn btn--blueGrad btn--lg" href="/?r=auth/register">Assine Agora</a>
         </article>
 
-        <!-- Empresarial Familiar -->
+        <!-- Contratação Empresarial — Familiar -->
         <article class="plan-card reveal">
           <header>
-            <h3>Empresarial Familiar <small>(a partir de 3 vidas)</small></h3>
+            <h3>Familiar <small>(contratação empresarial – a partir de 3 vidas)</small></h3>
             <div class="price"><small>R$</small>59,90 <small>/mês</small></div>
             <small class="muted">Por colaborador</small>
           </header>
           <ul class="ticklist" style="margin:6px 0 8px">
             <li>Clínico Geral 24h/7</li>
             <li>Pedidos de exames, receitas e encaminhamentos</li>
-            <li>Consultas presenciais com desconto</li>
+            <li>Consultas presenciais a preço popular</li>
             <li>Seguro de Acidentes Pessoais</li>
             <li>Sorteio mensal</li>
-            <li>Assistência funeral familiar</li>
+            <li>Assistência funeral (familiar)</li>
             <li>Assistência residencial</li>
             <li>Clube de vantagens</li>
             <li>Desconto em medicamentos</li>
@@ -458,8 +460,8 @@
               <th style="text-align:left">Benefícios</th>
               <th>Individual</th>
               <th>Familiar</th>
-              <th>Emp. Individual</th>
-              <th>Emp. Familiar</th>
+              <th>Individual (Emp.)</th>
+              <th>Familiar (Emp.)</th>
             </tr>
           </thead>
           <tbody>
@@ -472,7 +474,7 @@
               <td class="yes"></td><td class="yes"></td><td class="yes"></td><td class="yes"></td>
             </tr>
             <tr>
-              <td>Consultas presenciais com desconto</td>
+              <td>Consultas presenciais a preço popular</td>
               <td class="yes"></td><td class="yes"></td><td class="yes"></td><td class="yes"></td>
             </tr>
             <tr>
@@ -484,11 +486,11 @@
               <td class="yes"></td><td class="yes"></td><td class="yes"></td><td class="yes"></td>
             </tr>
             <tr>
-              <td>Assistência funeral individual</td>
+              <td>Assistência funeral (individual)</td>
               <td class="yes"></td><td class="no"></td><td class="yes"></td><td class="no"></td>
             </tr>
             <tr>
-              <td>Assistência funeral familiar</td>
+              <td>Assistência funeral (familiar)</td>
               <td class="no"></td><td class="yes"></td><td class="no"></td><td class="yes"></td>
             </tr>
             <tr>
@@ -500,14 +502,17 @@
               <td class="yes"></td><td class="yes"></td><td class="yes"></td><td class="yes"></td>
             </tr>
             <tr>
-              <td>Descontos em medicamentos</td>
+              <td>Desconto em medicamentos</td>
               <td class="yes"></td><td class="yes"></td><td class="yes"></td><td class="yes"></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <p class="section__desc center mt-24">Planos empresariais a partir de 3 vidas. Fale com a equipe para condições especiais.</p>
+      <p class="section__desc center mt-24">
+        Contratação empresarial disponível <strong>a partir de 3 vidas</strong>. Os serviços permanecem <strong>Individual</strong> ou <strong>Familiar</strong>;
+        o que muda é a <strong>modalidade de contratação</strong> e a precificação. Consulte a equipe para regras vigentes.
+      </p>
     </div>
   </section>
 
@@ -523,7 +528,7 @@
         <strong>Links</strong>
         <a href="/?r=site/faq">Sobre nós</a>
         <a href="/?r=site/parceiros">Parceiros</a>
-        <a href="/?r=site/plans" aria-current="page">Planos</a>
+        <a href="/?r=site/planos" aria-current="page">Planos</a>
         <a href="/?r=site/contato">Contato</a>
       </nav>
 

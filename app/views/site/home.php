@@ -232,6 +232,7 @@ body.site-page::before{
     text-align:center;background:transparent;border:2px solid #A8E6CF;
     border-radius:24px;padding:18px 16px;min-width:260px;flex:0 0 calc(33.333% - 10.666px)
   }
+
   .quote blockquote{font-style:italic;margin:.5rem 0;color:var(--ink)}
   .quote__avatar{border-radius:999px;display:block;margin:0 auto 8px;width:80px;height:80px;object-fit:cover}
   .quote__name{display:block;color:var(--ink-70);font-weight:700}
@@ -509,6 +510,15 @@ body.site-page::before{
   .btn--green:hover{
     filter:brightness(1.03) saturate(1.05);
   }
+
+  /* Parceiros - imagem única ocupando toda a linha */
+.logos-shelf--4 img {
+  grid-column: 1 / -1;   /* ocupa todas as colunas */
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
 
   </style>
 </head>
@@ -801,14 +811,11 @@ body.site-page::before{
     <div class="container">
       <div class="section__head center">
         <h2 class="section__title">Parceiros</h2>
-        <p class="section__desc">Rede em expansão — seu negócio aqui</p>
+        <p class="section__desc">Algumas marcas que já fazem parte do ecossistema Aviv+</p>
       </div>
 
       <div class="logos-shelf logos-shelf--4">
-        <img src="/img/logo1.png" alt="Parceiro 1" loading="lazy">
-        <img src="/img/logo2.png" alt="Parceiro 2" loading="lazy">
-        <img src="/img/logo3.png" alt="Parceiro 3" loading="lazy">
-        <img src="/img/logo4.png" alt="Parceiro 4" loading="lazy">
+        <img src="/img/partners.png" alt="Parceiros Aviv+" loading="lazy">
       </div>
     </div>
   </section>

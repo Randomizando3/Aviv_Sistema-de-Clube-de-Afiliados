@@ -12,6 +12,7 @@
       --green:#A8E6CF; --blue:#5DADE2; --blue-dark:#3B8FC6; --brand-deep:#006400;
       --white:#FFFFFF; --ink:#2C3E50; --ink-70: color-mix(in oklab, var(--ink), #0000 30%);
       --shadow: 0 8px 30px rgba(0,0,0,.08); --radius: 16px; --radius-lg: 24px; --container: 1120px;
+      --whats:#25D366;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -72,10 +73,33 @@
     .ticklist{list-style:none;margin:12px 0 16px;padding:0;display:grid;gap:10px}
     .ticklist li{position:relative;padding-left:28px;font-weight:700}
     .ticklist li::before{content:"✓";position:absolute;left:0;top:0;font-weight:800;color:#2FB67F}
-    .logos-shelf--4{display:grid;grid-template-columns:repeat(4, minmax(160px,1fr));gap:18px 24px;align-items:center;justify-items:center}
-    .logos-shelf--4 img{width:100%;max-width:260px;height:auto;display:block;filter:grayscale(100%) contrast(85%) brightness(95%);transition:filter .2s ease, transform .2s ease}
+
+    /* ===== AJUSTE PARA PARTNERS.PNG OCUPAR A LINHA TODA ===== */
+    .logos-shelf--4{
+      display:grid;
+      grid-template-columns:repeat(4, minmax(160px,1fr));
+      gap:18px 24px;
+      align-items:center;
+      justify-items:center;
+    }
+    .logos-shelf--4 img{
+      width:100%;
+      height:auto;
+      display:block;
+      filter:grayscale(100%) contrast(85%) brightness(95%);
+      transition:filter .2s ease, transform .2s ease;
+      border-radius:12px;
+    }
     .logos-shelf--4 img:hover{filter:none;transform:translateY(-2px)}
+    .logos-shelf--4 img.partners-full{
+      grid-column:1 / -1;
+      max-width:100%;
+      filter:none;
+      transform:none;
+    }
+    .logos-shelf--4 img.partners-full:hover{transform:none}
     @media (max-width:860px){.logos-shelf--4{grid-template-columns:repeat(2, minmax(140px,1fr))}}
+
     .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
     .step{padding:16px;border:1px solid rgba(14,17,22,.12);border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(14,17,22,.04)}
     .step h3{margin:0}
@@ -112,6 +136,56 @@
     .footer__links a:hover,.footer__contact a:hover{color:#fff}
     .footer__bottom{border-top:1px solid rgba(255,255,255,.2);padding:12px 0;background:transparent}
     .footer__bottom small{opacity:.95}
+
+    /* ===== CONTACT STRIP (PARCEIROS) ===== */
+    .partner-contact{
+      margin:10px auto 18px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      flex-wrap:wrap;
+      color:var(--ink);
+    }
+    .partner-contact strong{font-family:"Poppins",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .partner-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:.6rem .9rem;
+      border-radius:999px;
+      border:1px solid rgba(14,17,22,.12);
+      background:#fff;
+      box-shadow:0 6px 16px rgba(14,17,22,.06);
+      text-decoration:none;
+      color:var(--ink);
+      font-weight:800;
+      transition:transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+      max-width:100%;
+    }
+    .partner-pill:hover{
+      transform:translateY(-1px);
+      border-color:color-mix(in oklab, var(--blue) 55%, #0000);
+      box-shadow:0 10px 22px rgba(14,17,22,.10);
+    }
+    .partner-pill svg{flex:0 0 auto}
+    .partner-pill__text{
+      display:inline-block;
+      line-height:1.1;
+      white-space:nowrap;
+    }
+    @media (max-width:420px){
+      .partner-pill__text{white-space:normal}
+    }
+
+    /* ===== WHATSAPP PILL VISUAL ===== */
+    .partner-pill--whats{
+      border-color:color-mix(in oklab, var(--whats) 30%, #0000);
+    }
+    .partner-pill--whats:hover{
+      border-color:color-mix(in oklab, var(--whats) 55%, #0000);
+      box-shadow:0 10px 22px color-mix(in oklab, var(--whats) 18%, transparent);
+    }
   </style>
 </head>
 <body>
@@ -194,10 +268,7 @@
         <p class="section__desc">Algumas marcas que já fazem parte do ecossistema Aviv+</p>
       </div>
       <div class="logos-shelf--4">
-        <img src="/img/logo1.png" alt="Parceiro 1" loading="lazy">
-        <img src="/img/logo2.png" alt="Parceiro 2" loading="lazy">
-        <img src="/img/logo3.png" alt="Parceiro 3" loading="lazy">
-        <img src="/img/logo4.png" alt="Parceiro 4" loading="lazy">
+        <img class="partners-full" src="/img/partners.png" alt="Rede de parceiros Aviv+" loading="lazy">
       </div>
     </div>
   </section>
@@ -221,6 +292,33 @@
       <div class="section__head section__head--center">
         <h2 class="section__title">Seja nosso parceiro</h2>
         <p class="section__desc">Cadastre seu negócio e receba contato da nossa equipe</p>
+
+        <!-- ===== CONTATO ABAIXO DO SUBTÍTULO (ANTES DO FORM) ===== -->
+        <div class="partner-contact" aria-label="Contato comercial para empresas">
+          <strong>Contato comercial:</strong>
+
+          <!-- WhatsApp: abre chat -->
+          <!-- Observação: o número recebido está truncado (+55 21 99943-8907). Assim que você tiver os dígitos finais, substitua no TEXTO e no href (wa.me) -->
+          <a class="partner-pill partner-pill--whats" href="https://wa.me/5521999438907" target="_blank" rel="noopener" aria-label="Chamar no WhatsApp +55 21 99943-">
+            <!-- WhatsApp SVG (verde) -->
+            <svg width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
+              <path fill="var(--whats)" d="M19.11 17.45c-.27-.14-1.59-.79-1.84-.88-.25-.09-.44-.14-.62.14-.18.27-.71.88-.87 1.06-.16.18-.32.2-.59.07-.27-.14-1.14-.42-2.17-1.35-.8-.71-1.35-1.6-1.5-1.87-.16-.27-.02-.42.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.46.09-.18.05-.34-.02-.48-.07-.14-.62-1.5-.85-2.06-.22-.53-.45-.46-.62-.47-.16-.01-.34-.01-.53-.01-.18 0-.48.07-.73.34-.25.27-.96.94-.96 2.29 0 1.35.98 2.66 1.12 2.84.14.18 1.93 2.95 4.69 4.14.66.29 1.17.46 1.57.59.66.21 1.26.18 1.74.11.53-.08 1.59-.65 1.81-1.28.22-.62.22-1.15.16-1.28-.07-.12-.25-.2-.52-.34z"/>
+              <path fill="var(--whats)" d="M16.03 3.2c-7.08 0-12.83 5.75-12.83 12.83 0 2.25.59 4.36 1.62 6.2L3.2 28.8l6.72-1.58c1.75.95 3.76 1.49 5.9 1.49 7.08 0 12.83-5.75 12.83-12.83S23.11 3.2 16.03 3.2zm0 23.16c-2.06 0-3.97-.6-5.58-1.63l-.4-.25-3.99.94.97-3.88-.26-.4a10.32 10.32 0 0 1-1.67-5.61c0-5.7 4.64-10.34 10.34-10.34s10.34 4.64 10.34 10.34-4.64 10.34-10.34 10.34z"/>
+            </svg>
+            <span class="partner-pill__text">+55 21 99943-8907</span>
+          </a>
+
+          <!-- Email -->
+          <a class="partner-pill" href="mailto:comercial@avivmais.com.br" aria-label="Enviar e-mail para comercial@avivmais.com.br">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4h16v16H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="m22 6-10 7L2 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            <span class="partner-pill__text">comercial@avivmais.com.br</span>
+          </a>
+        </div>
+        <!-- ===== /CONTATO ===== -->
+
       </div>
 
       <div class="form-card">
@@ -384,7 +482,6 @@
         })
         .then(function(resp){
           if(!resp.ok){
-            // >>>>>> CORRIGIDO: backend envia { error, fields:{...} }
             var errs=(resp.data && (resp.data.fields || resp.data.errors)) || null;
             if(errs && typeof errs==='object'){
               Object.keys(errs).forEach(function(k){ setFieldError(k, errs[k]); });
@@ -394,7 +491,6 @@
             }
             return;
           }
-          // Sucesso
           setStatus('success', resp.data.message || 'Cadastro enviado com sucesso! Em breve nossa equipe entra em contato.');
           form.reset();
         })

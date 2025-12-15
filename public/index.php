@@ -101,7 +101,9 @@ if (str_starts_with($route, 'api/')) {
   $ct = 'application/json; charset=utf-8';
   if ($route === 'api/asaas/webhook') $ct = 'text/plain; charset=utf-8';
   if ($route === 'api/ads/track')     $ct = null; // pixel define o seu próprio (image/gif)
+  if ($route === 'api/terms/text')    $ct = 'text/plain; charset=utf-8';
   if ($ct) header('Content-Type: ' . $ct);
+
 
   
 
@@ -139,6 +141,8 @@ if (str_starts_with($route, 'api/')) {
       (new Api\AsaasController())->webhook();
       break;
 
+      
+
     case 'api/asaas/checkout-link':
       require BASE_PATH . '/app/controllers/Api/AsaasController.php';
       (new Api\AsaasController())->checkoutLink();
@@ -173,6 +177,17 @@ if (str_starts_with($route, 'api/')) {
     case 'api/plans/list':
       require BASE_PATH . '/app/controllers/Api/PlansController.php';
       (new Api\PlansController())->index();
+      break;
+
+          // ===== TERMS: aceite digital
+        case 'api/terms/accept':
+      require BASE_PATH . '/app/controllers/Api/TermsController.php';
+      (new Api\TermsController())->accept();
+      break;
+
+        case 'api/terms/text':
+      require BASE_PATH . '/app/controllers/Api/TermsController.php';
+      (new Api\TermsController())->text();
       break;
 
     case 'api/benefits/list':
@@ -499,8 +514,10 @@ $layout = str_starts_with($route, 'auth/') ? 'auth' : 'site';
  */
 $bareRoutes = [
   'site/home',
-  'site/plans',
+  'site/plans', 
   'site/parceiros',
+  'site/termo_aceite',
+
 ];
 
 // Se for rota bare, apenas require a view e sai

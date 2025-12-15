@@ -55,7 +55,11 @@
 
     <div class="terms-body">
       <!-- Termo em texto (API) -->
-      <div class="terms-doc">
+      <div class="terms-doc" id="terms-doc">
+        <div class="terms-docbar">
+          <span class="tlabel" style="margin:0">Termo</span>
+          <button class="btn btn-sm btn--ghost" id="terms-toggle" type="button" aria-expanded="true">Recolher</button>
+        </div>
         <div class="terms-text" id="terms-text" aria-label="Texto do termo"></div>
       </div>
 
@@ -142,6 +146,10 @@ const tsAgree        = document.getElementById('ts-agree');
 const sigCanvas      = document.getElementById('sig-canvas');
 const sigClear       = document.getElementById('sig-clear');
 
+// Toggle visual do termo (mobile)
+const termsDoc       = document.getElementById('terms-doc');
+const termsToggleBtn = document.getElementById('terms-toggle');
+
 function setAlert(msg){
   alertBox.style.display='block';
   alertBox.textContent = msg;
@@ -185,6 +193,25 @@ function popupWrite(pw, title, html){
     pw.document.close();
   } catch(e) {}
 }
+
+/* ===== Termo: recolher/expandir (somente visual) ===== */
+function isMobileTerms(){
+  return window.matchMedia && window.matchMedia('(max-width:720px)').matches;
+}
+function setTermsCollapsed(collapsed){
+  if (!termsDoc || !termsToggleBtn) return;
+
+  termsDoc.classList.toggle('is-collapsed', !!collapsed);
+  termsDoc.classList.toggle('is-expanded', !collapsed);
+
+  termsToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+  termsToggleBtn.textContent = collapsed ? 'Expandir' : 'Recolher';
+}
+termsToggleBtn?.addEventListener('click', ()=>{
+  const collapsed = termsDoc.classList.contains('is-collapsed');
+  setTermsCollapsed(!collapsed);
+  try { termsToggleBtn.blur(); } catch(e){}
+});
 
 /* ===== Estado de UI ===== */
 let BILLING = 'mensal';
@@ -434,8 +461,15 @@ btnContinue?.addEventListener('click', async ()=>{
   updateTermsBtnState();
 
   await loadTermsText();
+
+  // no celular: abre recolhido por padrão; no desktop: aberto
+  setTermsCollapsed(isMobileTerms());
+
   openModal(termsModal);
-  setTimeout(()=>{ resizeSigCanvasToCss(); }, 50);
+
+  setTimeout(()=>{
+    resizeSigCanvasToCss();
+  }, 50);
 });
 
 /* Fechar termo */
@@ -524,6 +558,7 @@ function ensureTermAcceptedOrWarn(){
     setAlert('Antes de prosseguir, aceite e assine o Termo.');
     closeModal(planModal);
     openModal(termsModal);
+    setTermsCollapsed(isMobileTerms());
     setTimeout(()=>{ resizeSigCanvasToCss(); }, 50);
     return false;
   }
@@ -537,7 +572,6 @@ btnBoleto?.addEventListener('click', async ()=>{
   const boletoWin = window.open('about:blank', '_blank');
   if(!boletoWin){ setAlert('Permita pop-ups.'); return; }
 
-  // mantém a guia aberta e informativa (não “pisca”)
   popupWrite(boletoWin, 'Gerando boleto…', `
     <h2 style="margin:0 0 6px">Gerando boleto…</h2>
     <p class="muted">Aguarde. Se aparecer erro, esta tela vai mostrar o motivo.</p>
@@ -856,17 +890,24 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   background:rgba(15,23,42,.65);
   display:none; place-items:center;
   padding:16px;
-  z-index:999999; /* bem alto */
+  z-index:999999;
   transition: opacity .12s ease;
   opacity:0;
 }
 .modal.is-open{ opacity:1; }
+
 .modal-box{
   width:min(540px, 96vw);
   border-radius:18px;
   transform: scale(.98);
   transition: transform .12s ease, opacity .12s ease;
   opacity:.98;
+
+  max-height: min(700px, calc(100dvh - 32px));
+  overflow:hidden;
+
+  display:flex;
+  flex-direction:column;
 }
 .modal.is-open .modal-box{ transform: scale(1); opacity:1; }
 
@@ -876,6 +917,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   display:flex; align-items:flex-start;
   justify-content:space-between;
   gap:12px; margin-bottom:10px;
+  flex:0 0 auto;
 }
 .icon-x{
   width:40px;height:38px;
@@ -885,27 +927,65 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   cursor:pointer;
 }
 .icon-x:hover{ background:#f3f4ff; }
+
+/* IMPORTANT: scroll do conteúdo do modal (evita encavalado) */
 .terms-body{
   display:grid;
   grid-template-columns: 1.25fr .9fr;
   gap:12px;
   align-items:start;
+
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+  padding-right:4px;
 }
+
+/* bloco do termo */
 .terms-doc{
   border:1px solid rgba(148,163,184,.55);
   border-radius:14px;
   overflow:hidden;
   background:#f8fafc;
-  min-height:420px;
+
+  display:flex;
+  flex-direction:column;
+
+  min-height:0; /* evita overflow “vazar” no grid */
+}
+.terms-docbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 12px;
+  background:#f8fafc;
+  border-bottom:1px solid rgba(148,163,184,.35);
 }
 .terms-text{
+  flex:1 1 auto;      /* garante que ocupa espaço do termo */
+  min-height:0;        /* essencial para overflow dentro de flex */
   padding:14px;
-  height:520px;
   overflow:auto;
   white-space:pre-wrap;
   font: 600 .92rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   color:#0f172a;
   background:#ffffff;
+  max-height:520px;
+}
+
+/* recolhido: remove do fluxo (não encavala) */
+.terms-doc.is-collapsed .terms-text{
+  display:none;
+}
+
+/* form (dá fundo para não “misturar” visualmente com o termo) */
+.terms-form{
+  background:#ffffff;
+  border:1px solid rgba(148,163,184,.35);
+  border-radius:14px;
+  padding:12px;
+  min-height:0;
 }
 .terms-form .tlabel{
   display:block;
@@ -972,9 +1052,15 @@ window.addEventListener('focus', ()=> refreshOverview(true));
 @media (max-width:720px){
   .member-plans .current-plan{ flex-direction:column; align-items:flex-start; gap:8px; }
   .member-plans .cp-right{ width:100%; display:flex; justify-content:space-between; }
+
   .terms-body{ grid-template-columns: 1fr; }
-  .terms-text{ height:420px; }
   .terms-grid{ grid-template-columns:1fr; }
   #sig-canvas{ height:190px; }
+
+  /* no mobile, quando expandir, termo vira caixa pequena com scroll */
+  .terms-doc.is-expanded .terms-text{
+    display:block;
+    max-height:220px;
+  }
 }
 </style>

@@ -22,6 +22,7 @@ services:
       MAIL_STRICT_TLS: "0"          # relaxar em DEV; remova em PROD
       MAIL_DEBUG: ""
       TZ: "America/Sao_Paulo"
+      SITE_URL: "https://avivmais.com.br"
     command: bash -lc "php -S 0.0.0.0:8765 -t public"
     restart: unless-stopped
 

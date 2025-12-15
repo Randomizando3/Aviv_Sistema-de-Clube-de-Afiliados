@@ -190,6 +190,11 @@ if (str_starts_with($route, 'api/')) {
       (new Api\TermsController())->text();
       break;
 
+      case 'api/terms/pdf':
+      require BASE_PATH . '/app/controllers/Api/TermsController.php';
+      (new Api\TermsController())->pdf();
+      break;
+
     case 'api/benefits/list':
       require BASE_PATH . '/app/controllers/Api/BenefitsController.php';
       (new Api\BenefitsController())->index();

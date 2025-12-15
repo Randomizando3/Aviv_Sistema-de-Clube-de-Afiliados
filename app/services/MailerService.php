@@ -20,7 +20,6 @@ class MailerService
 
     public function __construct(?array $cfg = null)
     {
-        // Defaults: Titan por padrão (587/TLS)
         $this->host     = $cfg['host']      ?? (getenv('SMTP_HOST') ?: 'smtp.titan.email');
         $this->port     = (int)($cfg['port']   ?? (getenv('SMTP_PORT') ?: 587));
         $this->secure   = $cfg['secure']    ?? (getenv('SMTP_SECURE') ?: 'tls');
@@ -36,33 +35,42 @@ class MailerService
      *   subject?: string,
      *   html?: string,
      *   text?: string,
-     *   reply_to?: string|array<string,string>|array<int,string>
+     *   reply_to?: string|array<string,string>|array<int,string>,
+     *   attachments?: array<int, array{
+     *     path: string,
+     *     name?: string,
+     *     mime?: string
+     *   }>
      * } $opts
      * @return array{ok:bool,message?:string,code?:int}
      */
     public function send(array $opts): array
     {
-        $to      = $opts['to'] ?? null;
-        $subject = (string)($opts['subject'] ?? '(sem assunto)');
-        $html    = (string)($opts['html'] ?? '');
-        $text    = (string)($opts['text'] ?? '');
-        $replyTo = $opts['reply_to'] ?? null;
+        $to          = $opts['to'] ?? null;
+        $subject     = (string)($opts['subject'] ?? '(sem assunto)');
+        $html        = (string)($opts['html'] ?? '');
+        $text        = (string)($opts['text'] ?? '');
+        $replyTo     = $opts['reply_to'] ?? null;
+        $attachments = $opts['attachments'] ?? [];
 
         if (!$to)  return ['ok' => false, 'message' => 'destinatário ausente', 'code' => 0];
         if ($html === '' && $text === '') return ['ok' => false, 'message' => 'corpo ausente', 'code' => 0];
 
-        // 1) Tenta a config pedida (por padrão 587/tls), 2) fallback 465/ssl
-        $try1 = $this->attemptSend($to, $subject, $html, $text, $replyTo, strtolower($this->secure), $this->port);
+        $try1 = $this->attemptSend($to, $subject, $html, $text, $replyTo, $attachments, strtolower($this->secure), $this->port);
         if ($try1['ok']) return $try1;
 
         $altSecure = strtolower($this->secure) === 'tls' ? 'ssl' : 'tls';
         $altPort   = strtolower($this->secure) === 'tls' ? 465   : 587;
 
-        $try2 = $this->attemptSend($to, $subject, $html, $text, $replyTo, $altSecure, $altPort);
-        return $try2;
+        return $this->attemptSend($to, $subject, $html, $text, $replyTo, $attachments, $altSecure, $altPort);
     }
 
-    private function attemptSend($to, string $subject, string $html, string $text, $replyTo, string $secure, int $port): array
+    /**
+     * @param mixed $to
+     * @param mixed $replyTo
+     * @param array<int,array{path:string,name?:string,mime?:string}> $attachments
+     */
+    private function attemptSend($to, string $subject, string $html, string $text, $replyTo, array $attachments, string $secure, int $port): array
     {
         $m = new PHPMailer(true);
 
@@ -72,11 +80,15 @@ class MailerService
             $m->SMTPAuth   = $this->auth;
             $m->Username   = $this->user;
             $m->Password   = $this->pass;
+
+            // ===== FIX DE ACENTOS / ENCODING =====
             $m->CharSet    = 'UTF-8';
-            $m->Timeout    = 20;
+            $m->Encoding   = 'base64';
+            // ====================================
+
+            $m->Timeout       = 25;
             $m->SMTPKeepAlive = false;
 
-            // Debug opcional
             if ((string)getenv('MAIL_DEBUG') !== '') {
                 $m->SMTPDebug   = SMTP::DEBUG_SERVER;
                 $m->Debugoutput = static function (string $str, int $level) {
@@ -84,7 +96,6 @@ class MailerService
                 };
             }
 
-            // TLS relaxado em DEV, se desejar
             if ((string)getenv('MAIL_STRICT_TLS') === '0') {
                 $m->SMTPOptions = [
                     'ssl' => [
@@ -103,26 +114,32 @@ class MailerService
                 $m->Port       = $port ?: 587;
             }
 
-            // Remetente (mesmo usuário no Titan)
             $m->setFrom($this->from, $this->fromName);
 
-            // Destinatários
             $this->addAddresses($m, $to);
 
-            // Reply-To
             if ($replyTo) $this->addReplyTo($m, $replyTo);
 
-            // Conteúdo
             if ($html !== '') $m->isHTML(true);
             $m->Subject = $subject;
-            if ($html !== '') $m->Body    = $html;
+
+            if ($html !== '') $m->Body = $html;
             if ($text !== '') $m->AltBody = $text;
+
+            foreach ($attachments as $att) {
+                $path = (string)($att['path'] ?? '');
+                if ($path === '' || !is_file($path)) continue;
+
+                $name = (string)($att['name'] ?? basename($path));
+                $mime = (string)($att['mime'] ?? 'application/octet-stream');
+
+                $m->addAttachment($path, $name, PHPMailer::ENCODING_BASE64, $mime);
+            }
 
             $m->send();
             return ['ok' => true];
 
         } catch (Throwable $e) {
-            // Codifica melhor as mensagens comuns
             $msg = $e->getMessage();
             $code = 0;
             if (preg_match('/\b(535|534|530)\b/', $msg, $m1)) {

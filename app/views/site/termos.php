@@ -1,11 +1,12 @@
-<?php // View: Termos de Uso — estilo igual ao "Planos" (glass-card clean, sem header/footer locais) ?>
+<?php // View: Regulamento do Associado — estilo igual ao "Planos" (glass-card clean, sem header/footer locais) ?>
 
 <section class="container termos-page" style="margin-top:18px">
   <section class="admin-main">
     <!-- Cabeçalho -->
     <div class="glass-card">
-      <h1 class="sect-title">Termos de Uso</h1>
-      <p class="muted">Última atualização: <?= date('d/m/Y') ?></p>
+      <h1 class="sect-title">Regulamento Oficial do Associado – AVIV+ Clube de Benefícios</h1>
+      <p class="muted" style="margin:0">Versão 1.0 – 2025</p>
+      <p class="muted" style="margin:6px 0 0">Última atualização: <?= date('d/m/Y') ?></p>
     </div>
 
     <!-- Layout (desktop: 2 colunas | mobile: 1 coluna com sumário sticky/top) -->
@@ -14,20 +15,22 @@
       <aside class="glass-card toc-card" aria-label="Sumário">
         <h2 class="sect-sub" style="margin:0 0 10px">Sumário</h2>
 
-        <nav aria-label="Sumário dos termos">
+        <nav aria-label="Sumário do regulamento">
           <ul class="toc">
             <li><a href="#t1">1. Definições</a></li>
-            <li><a href="#t2">2. Aceite e Atualizações</a></li>
-            <li><a href="#t3">3. Cadastro e Conta</a></li>
-            <li><a href="#t4">4. Planos e Pagamentos</a></li>
-            <li><a href="#t5">5. Benefícios e Parcerias</a></li>
-            <li><a href="#t6">6. Telemedicina</a></li>
-            <li><a href="#t7">7. Uso Adequado</a></li>
-            <li><a href="#t8">8. Privacidade</a></li>
-            <li><a href="#t9">9. Propriedade Intelectual</a></li>
-            <li><a href="#t10">10. Responsabilidade</a></li>
-            <li><a href="#t11">11. Suporte e Contato</a></li>
-            <li><a href="#t12">12. Lei Aplicável e Foro</a></li>
+            <li><a href="#t2">2. Natureza do Produto</a></li>
+            <li><a href="#t3">3. Adesão e Vigência</a></li>
+            <li><a href="#t4">4. Mensalidade e Política de Pagamentos</a></li>
+            <li><a href="#t5">5. Direitos do Associado</a></li>
+            <li><a href="#t6">6. Deveres do Associado</a></li>
+            <li><a href="#t7">7. Regras de Utilização dos Serviços</a></li>
+            <li><a href="#t8">8. Sorteio Mensal</a></li>
+            <li><a href="#t9">9. Exclusões Gerais</a></li>
+            <li><a href="#t10">10. Cancelamento</a></li>
+            <li><a href="#t11">11. Proteção de Dados – LGPD</a></li>
+            <li><a href="#t12">12. Disposições Legais</a></li>
+            <li><a href="#t13">13. Aceite Digital</a></li>
+            <li><a href="#t14">14. Vigência</a></li>
           </ul>
         </nav>
 
@@ -37,77 +40,221 @@
       </aside>
 
       <!-- Conteúdo -->
-      <article class="glass-card legal-card" aria-label="Conteúdo dos termos">
+      <article class="glass-card legal-card" aria-label="Conteúdo do regulamento">
+        <section class="t-sec">
+          <p>
+            Este Regulamento estabelece as regras gerais de adesão, utilização, direitos, deveres e obrigações dos ASSOCIADOS AVIV+,
+            bem como as disposições legais e operacionais do Clube de Benefícios. Ao aderir ao plano, o associado declara estar ciente,
+            concordar e aceitar integralmente os termos abaixo.
+          </p>
+        </section>
+
         <section id="t1" class="t-sec">
           <h2 class="t-h">1. Definições</h2>
-          <p>“Aviv+” refere-se ao site, plataforma e serviços. “Usuário” é quem acessa ou utiliza o site. “Assinante” é o usuário com plano ativo.</p>
+          <p>Para fins deste Regulamento, entende-se:</p>
+          <ul class="t-list">
+            <li><strong>1.1. AVIV+</strong> – Empresa fornecedora do Clube de Benefícios, responsável pela gestão administrativa, atendimento, comunicação e organização dos serviços disponibilizados aos associados.</li>
+            <li><strong>1.2. ASSOCIADO</strong> – Pessoa física ou jurídica que realiza adesão a um dos produtos AVIV+, mediante pagamento recorrente.</li>
+            <li><strong>1.3. PLANO INDIVIDUAL</strong> – Modalidade destinada a um único titular.</li>
+            <li><strong>1.4. PLANO FAMILIAR</strong> – Modalidade destinada ao titular + até 3 dependentes, conforme regras do produto.</li>
+            <li><strong>1.5. PLANO EMPRESARIAL</strong> – Modalidade vinculada ao CNPJ contratante, conforme número de vidas contratadas.</li>
+            <li><strong>1.6. BENEFÍCIOS</strong> – Conjunto de vantagens, serviços e assistências oferecidas pela AVIV+ por meio de parcerias.</li>
+            <li><strong>1.7. PARCEIROS</strong> – Empresas terceiras prestadoras dos serviços descritos no portfólio (telemedicina, consultas, assistência etc.).</li>
+            <li><strong>1.8. SORTEIOS</strong> – Ação promocional mensal, regulada em documento próprio.</li>
+            <li><strong>1.9. MENSALIDADE</strong> – Valor pago mensalmente pelo associado para manutenção ativa do plano e acesso aos benefícios.</li>
+          </ul>
         </section>
 
         <section id="t2" class="t-sec">
-          <h2 class="t-h">2. Aceite e Atualizações</h2>
-          <p>Ao utilizar o site, você concorda com estes Termos. Poderemos atualizá-los; a versão vigente é a publicada nesta página.</p>
+          <h2 class="t-h">2. Natureza do Produto</h2>
+          <ul class="t-list">
+            <li><strong>2.1.</strong> A AVIV+ não é plano de saúde, seguro saúde ou operadora de saúde.</li>
+            <li><strong>2.2.</strong> Os produtos ofertados tratam-se de: clube de vantagens, assistências, telemedicina, descontos e serviços complementares para qualidade de vida.</li>
+            <li><strong>2.3.</strong> Os serviços médicos e assistenciais são prestados por empresas parceiras, devidamente credenciadas, as quais possuem regulamentos próprios.</li>
+          </ul>
         </section>
 
         <section id="t3" class="t-sec">
-          <h2 class="t-h">3. Cadastro e Conta</h2>
+          <h2 class="t-h">3. Adesão e Vigência</h2>
           <ul class="t-list">
-            <li>É necessário ser maior de 18 anos ou legalmente capaz.</li>
-            <li>Você é responsável pela veracidade dos dados e pela confidencialidade das credenciais.</li>
-            <li>Contas podem ser suspensas em caso de fraude ou violação destes Termos.</li>
+            <li><strong>3.1.</strong> A adesão ocorre mediante:
+              <ul class="t-list" style="margin-top:6px">
+                <li>a) preenchimento de cadastro;</li>
+                <li>b) aceite eletrônico;</li>
+                <li>c) concordância com este Regulamento;</li>
+                <li>d) pagamento da primeira mensalidade.</li>
+              </ul>
+            </li>
+            <li><strong>3.2.</strong> A vigência é mensal e renovada automaticamente mediante manutenção do pagamento.</li>
+            <li><strong>3.3.</strong> O acesso aos serviços inicia-se após confirmação do pagamento, respeitando carências específicas quando previstas no produto.</li>
           </ul>
         </section>
 
         <section id="t4" class="t-sec">
-          <h2 class="t-h">4. Planos e Pagamentos</h2>
+          <h2 class="t-h">4. Mensalidade e Política de Pagamentos</h2>
           <ul class="t-list">
-            <li>Planos/valores constam em <a href="/?r=site/planos">/?r=site/planos</a> e podem mudar.</li>
-            <li>Cobranças são recorrentes conforme o ciclo do plano contratado.</li>
-            <li>Cancelamentos seguem regras do plano; benefícios cessam ao fim do ciclo vigente.</li>
-            <li>Direito de arrependimento (art. 49, CDC) será respeitado quando aplicável.</li>
+            <li><strong>4.1.</strong> A mensalidade deve ser paga até a data de vencimento.</li>
+            <li><strong>4.2.</strong> O não pagamento gera automaticamente a suspensão do acesso aos benefícios após 3 dias do vencimento.</li>
+            <li><strong>4.3.</strong> Após 30 dias de inadimplência, o contrato é cancelado automaticamente.</li>
+            <li><strong>4.4.</strong> A reativação só será possível mediante regularização total dos pagamentos pendentes.</li>
+            <li><strong>4.5.</strong> Em caso de cancelamento, o associado não terá direito a prêmios, sorteios, assistências ou qualquer benefício após o desligamento.</li>
+            <li><strong>4.6.</strong> A AVIV+ poderá reajustar o valor da mensalidade anualmente, com aviso prévio mínimo de 30 dias.</li>
           </ul>
         </section>
 
         <section id="t5" class="t-sec">
-          <h2 class="t-h">5. Benefícios e Parcerias</h2>
-          <p>Benefícios são prestados por terceiros parceiros, sujeitos a disponibilidade local e alterações. Podemos ajustar o catálogo para manter qualidade e conformidade.</p>
+          <h2 class="t-h">5. Direitos do Associado</h2>
+          <p>O associado tem direito a:</p>
+          <ul class="t-list">
+            <li>a) Acesso aos benefícios contratados conforme plano adquirido.</li>
+            <li>b) Atendimento por nossos canais oficiais.</li>
+            <li>c) Utilização dos serviços dentro das regras próprias de cada produto.</li>
+            <li>d) Participação no sorteio mensal (exceto inadimplentes).</li>
+            <li>e) Solicitar cancelamento a qualquer momento.</li>
+            <li>f) Receber atualizações e melhorias nos produtos, quando aplicadas.</li>
+          </ul>
         </section>
 
         <section id="t6" class="t-sec">
-          <h2 class="t-h">6. Telemedicina</h2>
-          <p>Quando ofertada, segue a regulamentação vigente e é realizada por profissionais habilitados. Não substitui, quando necessário, atendimentos presenciais, exames ou urgências.</p>
+          <h2 class="t-h">6. Deveres do Associado</h2>
+          <p>O associado se compromete a:</p>
+          <ul class="t-list">
+            <li>a) Manter seus dados atualizados.</li>
+            <li>b) Efetuar o pagamento das mensalidades em dia.</li>
+            <li>c) Utilizar os benefícios de forma ética e responsável.</li>
+            <li>d) Respeitar regulamentos internos de parceiros e prestadores.</li>
+            <li>e) Não fraudar, compartilhar indevidamente ou ceder o uso de benefícios a terceiros não autorizados.</li>
+            <li>f) Informar imediatamente qualquer inconsistência no cadastro ou nas cobranças.</li>
+          </ul>
         </section>
 
         <section id="t7" class="t-sec">
-          <h2 class="t-h">7. Uso Adequado</h2>
+          <h2 class="t-h">7. Regras de Utilização dos Serviços</h2>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.1. Telemedicina</h3>
           <ul class="t-list">
-            <li>É vedado uso para fins ilícitos, abusivos, scraping massivo, engenharia reversa ou violação de privacidade.</li>
-            <li>Medidas técnicas e legais podem ser adotadas para coibir uso indevido.</li>
+            <li>Ilimitada conforme regras do parceiro.</li>
+            <li>Requer acesso à plataforma credenciada.</li>
+            <li>Não substitui atendimento de urgência e emergência.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.2. Consultas presenciais</h3>
+          <ul class="t-list">
+            <li>Coparticipação de R$ 50,00.</li>
+            <li>Agendamento obrigatório via central indicada.</li>
+            <li>Sujeito à disponibilidade da rede credenciada.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.3. Exames com desconto</h3>
+          <ul class="t-list">
+            <li>Descontos praticados pela rede conveniada.</li>
+            <li>Preços variam conforme prestador.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.4. Assistência residencial</h3>
+          <ul class="t-list">
+            <li>Limites definidos no regulamento do parceiro.</li>
+            <li>Serviços como eletricista, encanador, chaveiro e outros.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.5. Assistência funeral</h3>
+          <ul class="t-list">
+            <li>Cobertura conforme apólice e regulamento do parceiro.</li>
+            <li>Necessária comunicação imediata em caso de uso.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.6. Medicamentos genéricos</h3>
+          <ul class="t-list">
+            <li>Até 6 utilizações/ano.</li>
+            <li>Reembolso máximo de R$ 150,00 por uso.</li>
+            <li>Necessário envio de receita médica, nota fiscal e formulário.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">7.7. Clube de vantagens</h3>
+          <ul class="t-list">
+            <li>Descontos diversos de acordo com empresas parceiras.</li>
+            <li>Parcerias podem ser alteradas sem aviso prévio.</li>
           </ul>
         </section>
 
         <section id="t8" class="t-sec">
-          <h2 class="t-h">8. Privacidade</h2>
-          <p>Tratamos dados conforme nossa Política de Privacidade (consulte <a href="/?r=site/contato">/?r=site/contato</a>). Ao usar os serviços, você concorda com as práticas descritas.</p>
+          <h2 class="t-h">8. Sorteio Mensal</h2>
+          <p>O associado declara ciência de que:</p>
+          <ul class="t-list">
+            <li>a) A participação é automática para adimplentes.</li>
+            <li>b) O regulamento de sorteio é documento separado.</li>
+            <li>c) A Aviv+ pode alterar itens, valores e regras a qualquer tempo.</li>
+          </ul>
         </section>
 
         <section id="t9" class="t-sec">
-          <h2 class="t-h">9. Propriedade Intelectual</h2>
-          <p>Marcas, conteúdos, layouts e códigos do site são protegidos. Não é permitido uso sem autorização, salvo exceções legais.</p>
+          <h2 class="t-h">9. Exclusões Gerais</h2>
+          <p>A Aviv+ não se responsabiliza por:</p>
+          <ul class="t-list">
+            <li>a) atendimentos médicos, diagnósticos, laudos ou tratamentos;</li>
+            <li>b) condutas dos profissionais parceiros;</li>
+            <li>c) disponibilidade individual dos prestadores;</li>
+            <li>d) dados incorretos fornecidos pelo associado;</li>
+            <li>e) falhas pontuais em sistemas de parceiros;</li>
+            <li>f) eventos de força maior.</li>
+          </ul>
         </section>
 
         <section id="t10" class="t-sec">
-          <h2 class="t-h">10. Responsabilidade</h2>
-          <p>Serviços são prestados “no estado em que se encontram”. Empregamos esforços razoáveis de disponibilidade e segurança, sem garantir operação ininterrupta. Na máxima extensão legal, eventual indenização limita-se ao valor pago no período imediatamente anterior ao evento.</p>
+          <h2 class="t-h">10. Cancelamento</h2>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">10.1. Solicitação pelo associado</h3>
+          <ul class="t-list">
+            <li>Pode ser feita a qualquer momento por nossos canais.</li>
+            <li>O cancelamento é efetivado em até 48h.</li>
+          </ul>
+
+          <h3 class="t-h" style="font-size:1.02rem;margin-top:10px">10.2. Cancelamento pela empresa</h3>
+          <ul class="t-list">
+            <li>Por inadimplência superior a 30 dias.</li>
+            <li>Por fraude, má-fé ou uso indevido do produto.</li>
+            <li>Por uso que viole este regulamento.</li>
+          </ul>
         </section>
 
         <section id="t11" class="t-sec">
-          <h2 class="t-h">11. Suporte e Contato</h2>
-          <p>Canais: <a href="mailto:contato@avivmais.com">contato@avivmais.com</a> e <a href="/?r=site/contato">/?r=site/contato</a>. Atendimento em horário comercial; telemedicina conforme informado.</p>
+          <h2 class="t-h">11. Proteção de Dados – LGPD</h2>
+          <p>A Aviv+ cumpre rigorosamente a Lei Geral de Proteção de Dados, garantindo:</p>
+          <ul class="t-list">
+            <li>a) tratamento seguro das informações;</li>
+            <li>b) uso exclusivo para fins operacionais do serviço;</li>
+            <li>c) confidencialidade dos dados;</li>
+            <li>d) possibilidade de solicitar remoção ou correção;</li>
+            <li>e) não compartilhamento sem autorização, exceto quando necessário para execução dos serviços.</li>
+          </ul>
         </section>
 
         <section id="t12" class="t-sec">
-          <h2 class="t-h">12. Lei Aplicável e Foro</h2>
-          <p>Aplica-se a legislação brasileira. Foro do domicílio do consumidor, ou da Comarca de Cabo Frio/RJ quando não houver relação de consumo.</p>
+          <h2 class="t-h">12. Disposições Legais</h2>
+          <ul class="t-list">
+            <li><strong>12.1.</strong> Este produto não caracteriza plano de saúde.</li>
+            <li><strong>12.2.</strong> Os valores pagos não são reembolsáveis.</li>
+            <li><strong>12.3.</strong> A Aviv+ pode alterar este regulamento mediante aviso prévio.</li>
+            <li><strong>12.4.</strong> A adesão implica concordância com todos os termos.</li>
+            <li><strong>12.5.</strong> O foro para dirimir questões será o da comarca de Niterói – RJ.</li>
+          </ul>
+        </section>
+
+        <section id="t13" class="t-sec">
+          <h2 class="t-h">13. Aceite Digital</h2>
+          <p>Ao marcar o termo de aceite, concluir o cadastro ou efetuar o pagamento da primeira mensalidade, o associado declara:</p>
+          <ul class="t-list">
+            <li>✔ que leu,</li>
+            <li>✔ compreendeu,</li>
+            <li>✔ concorda,</li>
+            <li>✔ aceita e</li>
+            <li>✔ está plenamente ciente de todo o conteúdo deste Regulamento.</li>
+          </ul>
+        </section>
+
+        <section id="t14" class="t-sec">
+          <h2 class="t-h">14. Vigência</h2>
+          <p>Este regulamento entra em vigor na data de sua publicação.</p>
         </section>
       </article>
     </div>

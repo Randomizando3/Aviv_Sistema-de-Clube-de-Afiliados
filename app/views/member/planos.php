@@ -58,7 +58,11 @@
       <div class="terms-doc" id="terms-doc">
         <div class="terms-docbar">
           <span class="tlabel" style="margin:0">Termo</span>
-          <button class="btn btn-sm btn--ghost" id="terms-toggle" type="button" aria-expanded="true">Recolher</button>
+
+          <div class="terms-doc-actions">
+            <a class="btn btn-sm" href="/?r=site/termos" target="_blank" rel="noopener">Regulamento</a>
+            <button class="btn btn-sm btn--ghost" id="terms-toggle" type="button" aria-expanded="true">Recolher</button>
+          </div>
         </div>
         <div class="terms-text" id="terms-text" aria-label="Texto do termo"></div>
       </div>
@@ -1070,6 +1074,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   cursor:pointer;
   box-shadow:0 12px 24px rgba(15,23,42,.16);
   transition:transform .06s ease, filter .18s ease, box-shadow .18s ease;
+  text-decoration:none;
 }
 .member-main .btn.btn-sm{ padding:8px 14px; font-size:.9rem; }
 .member-main .btn--ghost{ background:#e5e7eb; color:#111827; box-shadow:none; }
@@ -1297,8 +1302,10 @@ window.addEventListener('focus', ()=> refreshOverview(true));
 }
 .modal.is-open .modal-box{ transform: scale(1); opacity:1; }
 
-/* Modal termo */
-.terms-box{ width:min(980px, 96vw); }
+/* Modal termo (um pouco menor) */
+.terms-box{ width:min(920px, 94vw); }
+
+/* Cabeçalho termo */
 .terms-head{
   display:flex; align-items:flex-start;
   justify-content:space-between;
@@ -1348,6 +1355,13 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   background:#f8fafc;
   border-bottom:1px solid rgba(148,163,184,.35);
 }
+.terms-doc-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
 .terms-text{
   flex:1 1 auto;
   min-height:0;
@@ -1357,7 +1371,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   font: 600 .92rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   color:#0f172a;
   background:#ffffff;
-  max-height:520px;
+  max-height:460px; /* um pouco menor */
 }
 .terms-doc.is-collapsed .terms-text{ display:none; }
 
@@ -1481,11 +1495,14 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   grid-template-columns: 1fr 1fr;
   gap:10px;
 }
+
+/* >>> Ajuste solicitado: documento do dependente em duas linhas (select em cima, número embaixo) */
 .dep-docrow{
   display:grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 1fr; /* antes: 120px 1fr */
   gap:8px;
 }
+
 .dep-err{
   margin-top:8px;
   color:#b91c1c;

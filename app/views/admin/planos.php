@@ -1,56 +1,104 @@
 <?php
 // Admin • Planos — sem sidebar, largura igual ao Header, tabela (desktop) + cards (mobile)
+// Ajustes visuais: legenda + placeholders + espaçamento ENTRE planos com LINHA VERDE separadora (sem mudar funcionalidade)
 ?>
 <section class="container admin planos-page" style="margin-top:18px">
   <section class="admin-main">
     <div class="glass-card">
       <h1 class="sect-title">Admin • Planos</h1>
-      <p class="muted">
+      <p class="muted" style="margin:0">
         Gerencie os planos (id usado nas assinaturas, ex.: <code>start</code>, <code>plus</code>, <code>prime</code>).
+        <br>
+        <strong>Familiar:</strong> o preço mensal/anual é o valor base para o <strong>mínimo de usuários</strong>. O adicional por usuário soma acima do mínimo.
       </p>
+
+      <div class="legend-box" style="margin-top:12px">
+        <div class="legend-title">Legenda (campos do plano familiar)</div>
+        <div class="legend-grid" role="list" aria-label="Legenda dos campos familiares">
+          <div class="legend-item" role="listitem"><strong>Tipo</strong>: Individual ou Familiar</div>
+          <div class="legend-item" role="listitem"><strong>Mín. usuários</strong>: mínimo permitido (recomendado ≥ 2)</div>
+          <div class="legend-item" role="listitem"><strong>Máx. usuários</strong>: 0 = sem limite</div>
+          <div class="legend-item" role="listitem"><strong>+ por usuário (mensal)</strong>: valor extra por usuário acima do mínimo</div>
+          <div class="legend-item" role="listitem"><strong>+ por usuário (anual)</strong>: valor extra por usuário acima do mínimo no ciclo anual</div>
+        </div>
+      </div>
     </div>
 
     <!-- Novo plano -->
     <div class="glass-card" style="margin-top:12px">
       <h2 class="sect-sub">Novo plano</h2>
+
       <form id="plan-new" class="form-grid" action="#" onsubmit="return false;">
-        <div class="input-wrap">
-          <input class="field" id="pn-id"   type="text"   placeholder="ID (ex.: start)" required>
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-id" type="text" placeholder="ID do plano (ex.: start, plus, prime)" required aria-label="ID do plano">
         </div>
-        <div class="input-wrap">
-          <input class="field" id="pn-name" type="text"   placeholder="Nome (ex.: Start)" required>
+
+        <div class="input-wrap span-3">
+          <input class="field" id="pn-name" type="text" placeholder="Nome do plano (ex.: Start)" required aria-label="Nome do plano">
         </div>
-        <div class="input-wrap">
-          <input class="field" id="pn-pm"   type="number" step="0.01" min="0" placeholder="Preço mensal">
+
+        <div class="input-wrap span-2">
+          <select class="field" id="pn-type" aria-label="Tipo de plano">
+            <option value="0">Individual</option>
+            <option value="1">Familiar</option>
+          </select>
         </div>
-        <div class="input-wrap">
-          <input class="field" id="pn-py"   type="number" step="0.01" min="0" placeholder="Preço anual">
+
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-pm" type="number" step="0.01" min="0" placeholder="Preço mensal base (ex.: 49.90)" aria-label="Preço mensal base">
         </div>
-        <div class="input-wrap">
-          <select class="field" id="pn-status">
+
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-py" type="number" step="0.01" min="0" placeholder="Preço anual base (ex.: 598.80)" aria-label="Preço anual base">
+        </div>
+
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-min" type="number" step="1" min="1" placeholder="Mín. usuários (familiar) (ex.: 2)" value="1" aria-label="Mínimo de usuários">
+        </div>
+
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-max" type="number" step="1" min="0" placeholder="Máx. usuários (0 = livre)" value="0" aria-label="Máximo de usuários">
+        </div>
+
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-addm" type="number" step="0.01" min="0" placeholder="+ por usuário (mensal) (ex.: 9.90)" value="0" aria-label="Adicional por usuário mensal">
+        </div>
+
+        <div class="input-wrap span-2">
+          <input class="field" id="pn-addy" type="number" step="0.01" min="0" placeholder="+ por usuário (anual) (ex.: 99.00)" value="0" aria-label="Adicional por usuário anual">
+        </div>
+
+        <div class="input-wrap span-2">
+          <select class="field" id="pn-status" aria-label="Status do plano">
             <option value="active">Ativo</option>
             <option value="inactive">Inativo</option>
           </select>
         </div>
-        <div class="form-actions">
+
+        <div class="form-actions span-all">
           <button class="btn btn-sm" id="btn-create">Criar</button>
         </div>
       </form>
+
+      <div class="muted" style="margin-top:10px" id="pn-hint">
+        Dica: Se for Individual, deixe “mín/máx/+ por usuário” como padrão (min=1, max=0, adicional=0).
+      </div>
     </div>
 
     <!-- Lista (desktop: tabela) -->
     <div class="glass-card only-desktop" style="margin-top:12px">
       <h2 class="sect-sub">Lista de planos</h2>
+
       <div class="table-wrap" id="plans-table-wrap" role="region" aria-label="Tabela de planos">
         <table class="tbl-plans">
           <colgroup>
-            <col style="width:160px" />  <!-- ID -->
+            <col style="width:150px" />  <!-- ID -->
             <col style="width:28%"   />  <!-- Nome -->
-            <col style="width:130px" />  <!-- Mensal -->
-            <col style="width:130px" />  <!-- Anual -->
-            <col style="width:140px" />  <!-- Status -->
-            <col style="width:90px"  />  <!-- Ordem -->
-            <col style="width:180px" />  <!-- Ações -->
+            <col style="width:140px" />  <!-- Mensal -->
+            <col style="width:140px" />  <!-- Anual -->
+            <col style="width:150px" />  <!-- Status -->
+            <col style="width:100px" />  <!-- Ordem -->
+            <col style="width:190px" />  <!-- Ações -->
           </colgroup>
           <thead>
             <tr>
@@ -68,9 +116,11 @@
           </tbody>
         </table>
       </div>
+
       <div class="inline-actions" style="margin-top:10px">
         <button class="btn btn-sm" id="btn-save-order">Salvar ordem</button>
       </div>
+
       <div id="plans-alert" class="alert" role="status" aria-live="polite" style="display:none"></div>
     </div>
 
@@ -78,9 +128,11 @@
     <div class="glass-card only-mobile" style="margin-top:12px; display:none" id="plans-cards-box">
       <h2 class="sect-sub">Lista de planos</h2>
       <div id="plans-cards" class="plans-cards" role="list" aria-label="Lista de planos"></div>
+
       <div class="inline-actions" style="margin-top:10px">
         <button class="btn btn-sm" id="btn-save-order-m">Salvar ordem</button>
       </div>
+
       <div id="plans-alert-m" class="alert" role="status" aria-live="polite" style="display:none"></div>
     </div>
   </section>
@@ -94,6 +146,12 @@ const tbody        = document.getElementById('plans-body');
 const cardsBox     = document.getElementById('plans-cards-box');
 const cardsEl      = document.getElementById('plans-cards');
 
+const pnType = document.getElementById('pn-type');
+const pnMin  = document.getElementById('pn-min');
+const pnMax  = document.getElementById('pn-max');
+const pnAddM = document.getElementById('pn-addm');
+const pnAddY = document.getElementById('pn-addy');
+
 function setAlert(msg, mobile=false){
   const el = mobile ? (alertBoxM||alertBox) : alertBox;
   if(!el) return;
@@ -103,6 +161,34 @@ function setAlert(msg, mobile=false){
 }
 function escHtml(s){ return String(s ?? '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
 function escAttr(s){ return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function normalizeInt(v, def=0){
+  const n = parseInt(v, 10);
+  return isFinite(n) ? n : def;
+}
+function normalizeNum(v, def=0){
+  const n = Number(v);
+  return isFinite(n) ? n : def;
+}
+
+function syncNewPlanFamilyUI(){
+  const isFam = (pnType.value === '1');
+  pnMin.disabled = !isFam;
+  pnMax.disabled = !isFam;
+  pnAddM.disabled= !isFam;
+  pnAddY.disabled= !isFam;
+
+  if(!isFam){
+    pnMin.value = '1';
+    pnMax.value = '0';
+    pnAddM.value= '0';
+    pnAddY.value= '0';
+  }else{
+    if (normalizeInt(pnMin.value,1) < 2) pnMin.value = '2';
+  }
+}
+pnType.addEventListener('change', syncNewPlanFamilyUI);
+syncNewPlanFamilyUI();
 
 async function loadPlans(){
   try{
@@ -120,19 +206,37 @@ async function loadPlans(){
       const ord  = escAttr(p.sort_order ?? 0);
       const desc = escHtml(p.description ?? '');
 
+      const isFam = String(p.is_family ?? 0) === '1';
+      const minU  = escAttr(p.min_users ?? 1);
+      const maxU  = escAttr(p.max_users ?? 0);
+      const addM  = escAttr(p.add_user_monthly ?? 0);
+      const addY  = escAttr(p.add_user_yearly  ?? 0);
+
       return `
       <tr class="data-row" data-id="${id}">
         <td><code>${escHtml(p.id ?? '')}</code></td>
-        <td><input class="cell-field" type="text" value="${name}" data-f="name"></td>
-        <td><input class="cell-field ta-r" type="number" step="0.01" min="0" value="${pm}" data-f="price_monthly"></td>
-        <td><input class="cell-field ta-r" type="number" step="0.01" min="0" value="${py}" data-f="price_yearly"></td>
         <td>
-          <select class="cell-field" data-f="status">
+          <input class="cell-field" type="text" value="${name}" data-f="name"
+                 placeholder="Nome do plano" aria-label="Nome do plano">
+        </td>
+        <td>
+          <input class="cell-field ta-r" type="number" step="0.01" min="0" value="${pm}" data-f="price_monthly"
+                 placeholder="Mensal base" aria-label="Preço mensal base">
+        </td>
+        <td>
+          <input class="cell-field ta-r" type="number" step="0.01" min="0" value="${py}" data-f="price_yearly"
+                 placeholder="Anual base" aria-label="Preço anual base">
+        </td>
+        <td>
+          <select class="cell-field" data-f="status" aria-label="Status do plano">
             <option value="active" ${st==='active'?'selected':''}>Ativo</option>
             <option value="inactive" ${st!=='active'?'selected':''}>Inativo</option>
           </select>
         </td>
-        <td><input class="cell-field ta-c" type="number" value="${ord}" data-f="sort_order"></td>
+        <td>
+          <input class="cell-field ta-c" type="number" value="${ord}" data-f="sort_order"
+                 placeholder="Ordem" aria-label="Ordem de exibição">
+        </td>
         <td class="actions">
           <button class="icon-btn" data-act="up" title="Mover para cima" aria-label="Mover para cima">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
@@ -152,13 +256,66 @@ async function loadPlans(){
           </button>
         </td>
       </tr>
+
       <tr class="desc-row" data-id="${id}">
         <td colspan="7">
           <div class="desc-grid">
-            <textarea class="field" rows="2" data-f="description" placeholder="Descrição / benefícios (uma por linha; aceita • e ;)">${desc}</textarea>
+            <div class="fam-header">
+              <div class="fam-title">Configuração do plano</div>
+              <div class="muted fam-help">Se for Individual, mantenha os campos familiares em 1/0/0.</div>
+            </div>
+
+            <div class="grid-fam" data-fam>
+              <div class="fi">
+                <div class="fi-lbl">Tipo</div>
+                <select class="field" data-f="is_family" aria-label="Tipo do plano" title="Tipo do plano">
+                  <option value="0" ${!isFam?'selected':''}>Individual</option>
+                  <option value="1" ${isFam?'selected':''}>Familiar</option>
+                </select>
+              </div>
+
+              <div class="fi">
+                <div class="fi-lbl">Mín. usuários</div>
+                <input class="field" type="number" step="1" min="1" value="${minU}" data-f="min_users"
+                       placeholder="Ex.: 2" aria-label="Mínimo de usuários" title="Mínimo de usuários">
+              </div>
+
+              <div class="fi">
+                <div class="fi-lbl">Máx. usuários</div>
+                <input class="field" type="number" step="1" min="0" value="${maxU}" data-f="max_users"
+                       placeholder="0 = livre" aria-label="Máximo de usuários" title="Máximo de usuários (0 = livre)">
+              </div>
+
+              <div class="fi">
+                <div class="fi-lbl">+ por usuário (mensal)</div>
+                <input class="field" type="number" step="0.01" min="0" value="${addM}" data-f="add_user_monthly"
+                       placeholder="Ex.: 9.90" aria-label="Adicional por usuário mensal" title="Adicional por usuário mensal">
+              </div>
+
+              <div class="fi">
+                <div class="fi-lbl">+ por usuário (anual)</div>
+                <input class="field" type="number" step="0.01" min="0" value="${addY}" data-f="add_user_yearly"
+                       placeholder="Ex.: 99.00" aria-label="Adicional por usuário anual" title="Adicional por usuário anual">
+              </div>
+            </div>
+
+            <div class="fi">
+              <div class="fi-lbl">Descrição / benefícios</div>
+              <textarea class="field" rows="3" data-f="description"
+                        placeholder="Escreva benefícios (um por linha). Ex.:&#10;• Suporte 24/7&#10;• Telemedicina&#10;• Descontos"
+                        aria-label="Descrição / benefícios">${desc}</textarea>
+            </div>
+
+            <div class="muted fam-footnote">
+              Familiar: o preço mensal/anual é base do mínimo. Adicionais somam acima do mínimo.
+            </div>
           </div>
         </td>
-      </tr>`;
+      </tr>
+
+      <!-- separador visual entre planos (linha verde) -->
+      <tr class="plan-gap" aria-hidden="true"><td colspan="7"></td></tr>
+      `;
     }).join('');
     updateTableShadows();
 
@@ -170,6 +327,13 @@ async function loadPlans(){
       const py   = escAttr(p.price_yearly  ?? 0);
       const st   = (p.status === 'active') ? 'active' : 'inactive';
       const desc = escHtml(p.description ?? '');
+
+      const isFam = String(p.is_family ?? 0) === '1';
+      const minU  = escAttr(p.min_users ?? 1);
+      const maxU  = escAttr(p.max_users ?? 0);
+      const addM  = escAttr(p.add_user_monthly ?? 0);
+      const addY  = escAttr(p.add_user_yearly  ?? 0);
+
       return `
         <article class="plan-card" data-id="${id}" role="listitem" aria-label="Plano ${id}">
           <div class="pc-head">
@@ -185,19 +349,39 @@ async function loadPlans(){
           </div>
 
           <div class="grid-2">
-            <input class="field" type="text" value="${name}" data-f="name" placeholder="Nome">
-            <select class="field" data-f="status">
+            <input class="field" type="text" value="${name}" data-f="name" placeholder="Nome do plano" aria-label="Nome do plano">
+            <select class="field" data-f="status" aria-label="Status do plano">
               <option value="active" ${st==='active'?'selected':''}>Ativo</option>
               <option value="inactive" ${st!=='active'?'selected':''}>Inativo</option>
             </select>
           </div>
 
           <div class="grid-2">
-            <input class="field" type="number" step="0.01" min="0" value="${pm}" data-f="price_monthly" placeholder="Preço mensal">
-            <input class="field" type="number" step="0.01" min="0" value="${py}" data-f="price_yearly"  placeholder="Preço anual">
+            <input class="field" type="number" step="0.01" min="0" value="${pm}" data-f="price_monthly" placeholder="Mensal base" aria-label="Preço mensal base">
+            <input class="field" type="number" step="0.01" min="0" value="${py}" data-f="price_yearly"  placeholder="Anual base" aria-label="Preço anual base">
           </div>
 
-          <textarea class="field" rows="2" data-f="description" placeholder="Descrição / benefícios (uma por linha; aceita • e ;)">${desc}</textarea>
+          <div class="pc-subtitle">Configuração do plano</div>
+
+          <div class="grid-2">
+            <select class="field" data-f="is_family" aria-label="Tipo do plano">
+              <option value="0" ${!isFam?'selected':''}>Individual</option>
+              <option value="1" ${isFam?'selected':''}>Familiar</option>
+            </select>
+            <input class="field" type="number" step="1" min="1" value="${minU}" data-f="min_users" placeholder="Mín. usuários (ex.: 2)" aria-label="Mínimo de usuários">
+          </div>
+
+          <div class="grid-2">
+            <input class="field" type="number" step="1" min="0" value="${maxU}" data-f="max_users" placeholder="Máx. usuários (0 = livre)" aria-label="Máximo de usuários">
+            <input class="field" type="number" step="0.01" min="0" value="${addM}" data-f="add_user_monthly" placeholder="+ por usuário (mensal)" aria-label="Adicional por usuário mensal">
+          </div>
+
+          <div class="grid-2">
+            <input class="field" type="number" step="0.01" min="0" value="${addY}" data-f="add_user_yearly" placeholder="+ por usuário (anual)" aria-label="Adicional por usuário anual">
+            <div class="muted tiny-note">Familiar: base do mínimo + adicionais.</div>
+          </div>
+
+          <textarea class="field" rows="3" data-f="description" placeholder="Descrição / benefícios (um por linha)" aria-label="Descrição / benefícios">${desc}</textarea>
 
           <div class="pc-foot">
             <button class="btn btn-sm" data-act="save">Salvar</button>
@@ -211,25 +395,42 @@ async function loadPlans(){
   }
 }
 
-/* ===== Reordenar (desktop) — move par: data-row + desc-row */
+/* ===== Reordenar (desktop) — move par: data-row + desc-row (e mantém gap junto) */
 function movePair(tr, dir){
   if(!tr || !tr.classList.contains('data-row')) return;
+
   const desc = tr.nextElementSibling;
   if(!desc || !desc.classList.contains('desc-row')) return;
 
+  const gap = desc.nextElementSibling;
+  const hasGap = gap && gap.classList.contains('plan-gap');
+
+  const insertWithGap = (a, b, beforeNode) => {
+    tbody.insertBefore(a, beforeNode);
+    tbody.insertBefore(b, beforeNode);
+    if(hasGap) tbody.insertBefore(gap, beforeNode);
+  };
+
   if(dir==='up'){
-    const prevDesc = tr.previousElementSibling;
+    const prevGapOrDesc = tr.previousElementSibling;
+    const prevDesc = prevGapOrDesc && prevGapOrDesc.classList.contains('plan-gap')
+      ? prevGapOrDesc.previousElementSibling
+      : prevGapOrDesc;
     const prevData = prevDesc ? prevDesc.previousElementSibling : null;
+
     if(prevData && prevData.classList.contains('data-row')){
-      tbody.insertBefore(tr, prevData);
-      tbody.insertBefore(desc, prevData);
+      insertWithGap(tr, desc, prevData);
     }
   } else if(dir==='down'){
-    const nextData = desc.nextElementSibling;
+    const afterCurrent = hasGap ? gap.nextElementSibling : desc.nextElementSibling;
+    const nextData = afterCurrent;
     const nextDesc = nextData ? nextData.nextElementSibling : null;
+    const nextGap  = nextDesc ? nextDesc.nextElementSibling : null;
+
     if(nextData && nextDesc && nextData.classList.contains('data-row') && nextDesc.classList.contains('desc-row')){
       tbody.insertBefore(nextData, tr);
       tbody.insertBefore(nextDesc, tr);
+      if(nextGap && nextGap.classList.contains('plan-gap')) tbody.insertBefore(nextGap, tr);
     }
   }
 }
@@ -250,12 +451,27 @@ function moveCard(card, dir){
 function collectData(scope){
   const data = {};
   scope.querySelectorAll('[data-f]').forEach(el => data[el.dataset.f] = (el.value||'').trim());
+
   if(scope.classList.contains('data-row')){
     const descRow = scope.nextElementSibling;
     if(descRow && descRow.classList.contains('desc-row')){
-      const txt = descRow.querySelector('[data-f="description"]')?.value || '';
-      data.description = txt.trim();
+      descRow.querySelectorAll('[data-f]').forEach(el => data[el.dataset.f] = (el.value||'').trim());
     }
+  }
+
+  data.is_family = String(data.is_family ?? '0') === '1' ? '1' : '0';
+  data.min_users = String(Math.max(1, normalizeInt(data.min_users, 1)));
+  data.max_users = String(Math.max(0, normalizeInt(data.max_users, 0)));
+  data.add_user_monthly = String(Math.max(0, normalizeNum(data.add_user_monthly, 0)));
+  data.add_user_yearly  = String(Math.max(0, normalizeNum(data.add_user_yearly, 0)));
+
+  if (data.is_family !== '1') {
+    data.min_users = '1';
+    data.max_users = '0';
+    data.add_user_monthly = '0';
+    data.add_user_yearly  = '0';
+  } else {
+    if (normalizeInt(data.min_users, 2) < 2) data.min_users = '2';
   }
   return data;
 }
@@ -360,16 +576,46 @@ document.getElementById('btn-create').addEventListener('click', async ()=>{
   const pm = document.getElementById('pn-pm').value || 0;
   const py = document.getElementById('pn-py').value || 0;
   const status = document.getElementById('pn-status').value;
+
+  const is_family = (document.getElementById('pn-type').value === '1') ? '1' : '0';
+  let min_users = document.getElementById('pn-min').value || 1;
+  let max_users = document.getElementById('pn-max').value || 0;
+  let add_user_monthly = document.getElementById('pn-addm').value || 0;
+  let add_user_yearly  = document.getElementById('pn-addy').value || 0;
+
   if(!id || !name) return setAlert('Preencha ID e Nome');
+
+  min_users = String(Math.max(1, normalizeInt(min_users, 1)));
+  max_users = String(Math.max(0, normalizeInt(max_users, 0)));
+  add_user_monthly = String(Math.max(0, normalizeNum(add_user_monthly, 0)));
+  add_user_yearly  = String(Math.max(0, normalizeNum(add_user_yearly, 0)));
+
+  if (is_family !== '1') {
+    min_users = '1'; max_users='0'; add_user_monthly='0'; add_user_yearly='0';
+  } else {
+    if (normalizeInt(min_users, 2) < 2) min_users = '2';
+  }
 
   const r = await fetch('/?r=api/admin/plans/save', {
     method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({ id, name, price_monthly: pm, price_yearly: py, status })
+    body: new URLSearchParams({
+      id, name,
+      price_monthly: pm,
+      price_yearly: py,
+      status,
+      is_family,
+      min_users,
+      max_users,
+      add_user_monthly,
+      add_user_yearly
+    })
   });
   const j = await r.json();
   if(!r.ok){ setAlert(j.error||'Erro ao criar'); return; }
   setAlert('Plano criado');
   document.getElementById('plan-new').reset();
+  pnType.value = '0';
+  syncNewPlanFamilyUI();
   loadPlans();
 });
 
@@ -387,31 +633,6 @@ window.addEventListener('resize', updateTableShadows, {passive:true});
 
 /* init */
 loadPlans();
-
-
-let CUR_PLAN_ID = null;
-let PENDING_BADGE_PLAN_ID = null;
-
-(async function loadCurrent(){
-  try{
-    const r = await fetch('/?r=api/member/overview');
-    if (!r.ok) return;
-    const j = await r.json();
-    if (!j) return;
-
-    CUR_PLAN_ID = j.subscription?.plan_id || null;
-    PENDING_BADGE_PLAN_ID = j.pendingBadge?.plan_id || null;
-
-    document.getElementById('cur-wrap').style.display='flex';
-    document.getElementById('cur-name').textContent =
-      (j.plan?.name || j.subscription?.plan_id || '—');
-    const amt = +(j.subscription?.amount||0);
-    document.getElementById('cur-amount').textContent =
-      amt ? ('R$ ' + amt.toFixed(2).replace('.',',')) : '—';
-    document.getElementById('cur-meta').textContent =
-      (j.subscription?.renew_at ? ('Renova em ' + j.subscription.renew_at) : 'Sem renovação');
-  }catch(e){}
-})();
 </script>
 
 <style>
@@ -439,32 +660,49 @@ let PENDING_BADGE_PLAN_ID = null;
   color:var(--text,#111322);
   box-shadow:0 18px 40px rgba(15,23,42,.06);
 }
-.sect-title{
-  margin:0 0 8px;
-  font-weight:800;
-  color:var(--text,#111322);
+.sect-title{ margin:0 0 8px; font-weight:800; color:var(--text,#111322); }
+.sect-sub  { margin:0 0 8px; font-weight:700; color:var(--text,#111322); }
+.muted{ color:var(--muted,#6b7280); opacity:1; font-size:.9rem; }
+
+/* ===== legenda ===== */
+.legend-box{
+  border:1px dashed rgba(15,23,42,.14);
+  border-radius:14px;
+  padding:12px;
+  background:rgba(248,250,252,.8);
 }
-.sect-sub{
-  margin:0 0 8px;
+.legend-title{
   font-weight:700;
-  color:var(--text,#111322);
+  font-size:.92rem;
+  color:#111322;
+  margin-bottom:8px;
 }
-.muted{
-  color:var(--muted,#6b7280);
-  opacity:1;
-  font-size:.9rem;
+.legend-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:8px 12px;
+}
+.legend-item{ font-size:.88rem; color:#374151; }
+@media (max-width:720px){
+  .legend-grid{ grid-template-columns:1fr; }
 }
 
 /* ===== form novo plano ===== */
 .form-grid{
   display:grid;
-  grid-template-columns:repeat(6,minmax(0,1fr));
+  grid-template-columns:repeat(12,minmax(0,1fr));
   gap:10px;
 }
-@media (max-width:980px){
+.span-2{ grid-column: span 2; }
+.span-3{ grid-column: span 3; }
+.span-all{ grid-column: 1 / -1; }
+
+@media (max-width:1100px){
   .form-grid{ grid-template-columns:1fr 1fr; }
-  .form-actions{ grid-column:1/-1; }
+  .span-2,.span-3{ grid-column: span 1; }
+  .span-all{ grid-column: 1 / -1; }
 }
+
 .field{
   width:100%;
   box-sizing:border-box;
@@ -475,10 +713,15 @@ let PENDING_BADGE_PLAN_ID = null;
   color:#111322;
   outline:none;
 }
+.field:disabled{
+  opacity:.6;
+  background:#f8fafc;
+}
 .form-actions{
   display:flex;
   align-items:center;
   gap:8px;
+  padding-top:2px;
 }
 
 /* botões */
@@ -491,15 +734,9 @@ let PENDING_BADGE_PLAN_ID = null;
   cursor:pointer;
 }
 .btn-sm{ padding:8px 12px; }
-.btn--ghost{
-  background:transparent;
-  border:1px solid #d0d7e2;
-}
+.btn--ghost{ background:transparent; border:1px solid #d0d7e2; }
 .btn.danger,
-.btn.btn--ghost.danger{
-  border-color:#fecaca;
-  color:#b91c1c;
-}
+.btn.btn--ghost.danger{ border-color:#fecaca; color:#b91c1c; }
 
 /* alert */
 .alert{
@@ -536,13 +773,11 @@ let PENDING_BADGE_PLAN_ID = null;
   display:none;
 }
 .table-wrap.shadow-left::before{
-  display:block;
-  left:0;
+  display:block; left:0;
   background:linear-gradient(to right, rgba(148,163,184,.5), rgba(148,163,184,0));
 }
 .table-wrap.shadow-right::after{
-  display:block;
-  right:0;
+  display:block; right:0;
   background:linear-gradient(to left, rgba(148,163,184,.5), rgba(148,163,184,0));
 }
 
@@ -551,7 +786,7 @@ let PENDING_BADGE_PLAN_ID = null;
   border-collapse:separate;
   border-spacing:0;
   table-layout:fixed;
-  min-width:980px;
+  min-width:1080px;
   background:#ffffff;
 }
 .tbl-plans thead th{
@@ -571,7 +806,7 @@ let PENDING_BADGE_PLAN_ID = null;
   white-space:nowrap;
   border-bottom:1px solid #eef2f7;
 }
-.tbl-plans td:nth-child(2){ white-space:normal; } /* Nome pode quebrar */
+.tbl-plans td:nth-child(2){ white-space:normal; }
 
 /* inputs da tabela */
 .cell-field{
@@ -590,12 +825,47 @@ let PENDING_BADGE_PLAN_ID = null;
   margin:0;
 }
 
-/* linha extra de descrição */
-.data-row + .desc-row td{ padding-bottom:14px; }
-.desc-row td{ padding-top:0; border-bottom:1px solid #eef2f7; }
-.desc-grid{ display:grid; grid-template-columns:1fr; gap:8px; }
+/* ===== descrição + config ===== */
+.desc-row td{
+  white-space:normal;
+  padding-top:10px;
+  padding-bottom:12px;
+  background:#fbfdff;
+}
+.desc-grid{ display:grid; grid-template-columns:1fr; gap:12px; }
 
-/* ações (ícones) */
+.fam-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.fam-title{ font-weight:700; color:#111322; }
+.fam-help{ font-size:.86rem; }
+.fam-footnote{ font-size:.86rem; }
+
+.grid-fam{
+  display:grid;
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap:12px;
+  align-items:end;
+}
+.fi{ display:flex; flex-direction:column; gap:6px; }
+.fi-lbl{
+  font-size:.82rem;
+  color:#475569;
+  font-weight:600;
+  padding-left:2px;
+}
+@media (max-width:1200px){
+  .grid-fam{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width:860px){
+  .grid-fam{ grid-template-columns: 1fr; }
+}
+
+/* ações */
 .tbl-plans td.actions{
   display:flex;
   align-items:center;
@@ -626,15 +896,28 @@ let PENDING_BADGE_PLAN_ID = null;
   color:#b91c1c;
 }
 
+/* ===== separador ENTRE planos (linha verde simples) ===== */
+.plan-gap td{
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+}
+.plan-gap td::before{
+  content:"";
+  display:block;
+  height:18px;                       /* espaço entre planos */
+  border-top:4px solid #22c55e;      /* LINHA VERDE */
+  border-radius:999px;
+  margin:6px 0 0;                    /* afasta da tabela/linha anterior */
+}
+
 /* ===== mobile (≤ 720px): cards ===== */
 @media (max-width:720px){
   .only-desktop{ display:none; }
   .only-mobile{ display:block !important; }
 
-  .plans-cards{
-    display:grid;
-    gap:12px;
-  }
+  .plans-cards{ display:grid; gap:14px; }
+
   .plan-card{
     border:1px solid #d0d7e2;
     border-radius:16px;
@@ -657,6 +940,18 @@ let PENDING_BADGE_PLAN_ID = null;
   }
   @media (max-width:480px){
     .grid-2{ grid-template-columns:1fr; }
+  }
+  .pc-subtitle{
+    margin-top:10px;
+    font-weight:700;
+    color:#111322;
+    font-size:.9rem;
+  }
+  .tiny-note{
+    display:flex;
+    align-items:center;
+    padding:0 4px;
+    font-size:.85rem;
   }
   .pc-foot{
     display:flex;

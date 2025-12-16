@@ -71,8 +71,8 @@
           </div>
 
           <div class="input-wrap">
-            <label class="tlabel" for="ts-doc">Documento (opcional)</label>
-            <input class="field" id="ts-doc" type="text" placeholder="CPF/CNPJ (opcional)">
+            <label class="tlabel" for="ts-doc">Documento (CPF/CNPJ)</label>
+            <input class="field" id="ts-doc" type="text" placeholder="Digite seu CPF/CNPJ" required>
           </div>
         </div>
 
@@ -112,10 +112,9 @@
     <p id="plan-modal-resumo" class="muted">Resumo…</p>
     <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-sm" id="plan-confirm-boleto" type="button" disabled>Boleto (recorrente)</button>
-      <button class="btn btn-sm" id="plan-confirm-card"   type="button" disabled>Cartão (Checkout)</button>
       <button class="btn btn-sm btn--ghost" id="plan-cancel" type="button">Cancelar</button>
     </div>
-    <p class="muted" style="margin:.5rem 0 0">Obs.: Assinaturas via API aceitam Boleto/Cartão. PIX não é suportado para recorrência.</p>
+    <p class="muted" style="margin:.5rem 0 0">Obs.: Assinaturas via API aceitam Boleto/Cartão. Aqui mantivemos somente Boleto.</p>
   </div>
 </div>
 
@@ -128,7 +127,6 @@ const planModal     = document.getElementById('plan-modal');
 const planResumo    = document.getElementById('plan-modal-resumo');
 const planCancel    = document.getElementById('plan-cancel');
 const btnBoleto     = document.getElementById('plan-confirm-boleto');
-const btnCard       = document.getElementById('plan-confirm-card');
 const statusPill    = document.getElementById('cur-status-pill');
 
 // Termo modal refs
@@ -162,8 +160,14 @@ function setTermsAlert(msg){
 }
 
 function moneyBR(v){ return 'R$ ' + (+v||0).toFixed(2).replace('.',','); }
-function escapeHtml(s){ return (s||'').replace(/[&<>]/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+function escapeHtml(s){ return String(s||'').replace(/[&<>]/g, m=> ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
 function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+
+function digitsOnly(s){ return String(s||'').replace(/\D+/g,''); }
+function isCpfCnpjValid(s){
+  const d = digitsOnly(s);
+  return d.length === 11 || d.length === 14;
+}
 
 async function fetchJsonOrText(url, opts){
   const r = await fetch(url, opts);
@@ -219,9 +223,7 @@ document.querySelectorAll('.billing-btn').forEach(b=>{
   b.addEventListener('click', ()=>{
     BILLING = b.dataset.billing;
     document.querySelectorAll('.billing-btn').forEach(x=>x.classList.toggle('is-active', x===b));
-    document.querySelectorAll('[data-price-mensal]').forEach(el=>{
-      el.textContent = BILLING==='anual' ? el.getAttribute('data-price-anual') : el.getAttribute('data-price-mensal');
-    });
+    updateAllPlanPrices();
   });
 });
 
@@ -230,10 +232,24 @@ let ACTIVE_PLAN_ID   = null;
 let PENDING_PLAN_ID  = null;
 let PENDING_WATCHER  = null;
 
+// Defaults do perfil para o termo
+let PROFILE_DEFAULTS = { name: '', document: '' };
+
+function applyProfileDefaultsToTermsIfEmpty(){
+  if (!tsName.value.trim() && PROFILE_DEFAULTS.name) tsName.value = PROFILE_DEFAULTS.name;
+  if (!tsDoc.value.trim() && PROFILE_DEFAULTS.document) tsDoc.value = PROFILE_DEFAULTS.document;
+  updateTermsBtnState();
+}
+
 async function refreshOverview(reloadPlans = true){
   const r = await fetch('/?r=api/member/overview', { cache: 'no-store' });
   if (!r.ok) return;
   const j = await r.json();
+
+  // tenta capturar perfil do payload (robusto)
+  const u = j.user || j.me || j.profile || j.member || {};
+  PROFILE_DEFAULTS.name = String(u.name || j.name || '').trim();
+  PROFILE_DEFAULTS.document = String(u.document || u.cpfCnpj || u.cpf || u.cnpj || j.document || '').trim();
 
   const active  = j.activeSubscription || j.subscription || null;
   const pending = (j.pendingHasInvoice ? (j.pendingSubscription || null) : null);
@@ -282,6 +298,7 @@ refreshOverview().catch(()=>{});
 
 /* ===== Carregar e renderizar planos ===== */
 let PLANS = [];
+let QTY_BY_PLAN = {}; // planId => qty selecionada
 
 function descriptionToHtml(desc){
   const clean = String(desc||'').replace(/<\s*br\s*\/?>/gi, '\n').trim();
@@ -298,7 +315,8 @@ async function loadPlans(){
     return;
   }
   const j = resp.json || {};
-  PLANS = (j.plans||[]).filter(p => (p.status||'active')==='active');
+  // filtro robusto (aceita "active"/"Ativo" e afins, e remove inativos)
+  PLANS = (j.plans||[]).filter(p => String(p.status || 'active').toLowerCase() !== 'inactive');
 }
 
 function pickPrice(p){
@@ -308,28 +326,153 @@ function pickPrice(p){
   return { pm, py };
 }
 
+function isFamilyPlan(p){
+  const v = (p.is_family ?? p.family ?? p.isFamily ?? 0);
+  return String(v) === '1' || v === 1 || v === true;
+}
+
+function planMinUsers(p){
+  const n = parseInt(p.min_users ?? p.minUsers ?? 1, 10);
+  return isFinite(n) && n > 0 ? n : 1;
+}
+function planMaxUsers(p){
+  const n = parseInt(p.max_users ?? p.maxUsers ?? 0, 10);
+  return isFinite(n) && n > 0 ? n : 0; // 0 => sem limite
+}
+function planAddMonthly(p){
+  const v = +((p.add_user_monthly ?? p.addMonthly ?? 0) || 0);
+  return isFinite(v) ? v : 0;
+}
+function planAddYearly(p){
+  const v = +((p.add_user_yearly ?? p.addYearly ?? 0) || 0);
+  return isFinite(v) ? v : 0;
+}
+
+function clampQty(p, qty){
+  const min = planMinUsers(p);
+  const max = planMaxUsers(p);
+  let q = parseInt(qty, 10);
+  if (!isFinite(q) || q < min) q = min;
+  if (max > 0 && q > max) q = max;
+  return q;
+}
+
+function calcAmount(p, cycle, qty){
+  const {pm, py} = pickPrice(p);
+  const fam = isFamilyPlan(p);
+  if (!fam) return (cycle==='yearly') ? py : pm;
+
+  const min = planMinUsers(p);
+  const q   = clampQty(p, qty ?? min);
+  const add = (cycle==='yearly') ? planAddYearly(p) : planAddMonthly(p);
+  const base= (cycle==='yearly') ? py : pm;
+  return base + Math.max(0, (q - min)) * add;
+}
+
+function updateAllPlanPrices(){
+  const cycle = (BILLING==='anual') ? 'yearly' : 'monthly';
+
+  plansHolder.querySelectorAll('.plan-option').forEach(card=>{
+    const pid = card.getAttribute('data-plan-id');
+    const p = PLANS.find(x=>String(x.id)===String(pid));
+    if(!p) return;
+
+    const qty = QTY_BY_PLAN[pid] ?? planMinUsers(p);
+    const amt = calcAmount(p, cycle, qty);
+
+    const priceEl = card.querySelector('.po-price');
+    if (priceEl) {
+      priceEl.textContent = cycle==='yearly'
+        ? (moneyBR(amt) + ' • anual')
+        : (moneyBR(amt) + '/mês');
+    }
+
+    const hint = card.querySelector('.family-hint');
+    if (hint && isFamilyPlan(p)) {
+      const min = planMinUsers(p);
+      const max = planMaxUsers(p);
+      const addM = planAddMonthly(p);
+      const addY = planAddYearly(p);
+      hint.textContent = `Mín.: ${min} usuário(s)` +
+        (max>0 ? ` • Máx.: ${max}` : '') +
+        ((cycle==='yearly')
+          ? (addY>0 ? ` • +${moneyBR(addY)}/usuário (anual)` : '')
+          : (addM>0 ? ` • +${moneyBR(addM)}/usuário` : '')
+        );
+    }
+
+    // garante que o número apareça (atualiza o input visível)
+    const qtyInput = card.querySelector('.qty-input');
+    if (qtyInput && isFamilyPlan(p)) {
+      qtyInput.value = String(clampQty(p, QTY_BY_PLAN[pid] ?? planMinUsers(p)));
+    }
+  });
+}
+
 async function renderPlans(){
   if (!PLANS.length) await loadPlans();
 
   plansHolder.innerHTML = PLANS.map(p=>{
-    const {pm, py} = pickPrice(p);
-    const priceMensal = moneyBR(pm) + '/mês';
-    const priceAnual  = moneyBR(py) + ' • anual';
+    const fam = isFamilyPlan(p);
+    const minU = planMinUsers(p);
+    const maxU = planMaxUsers(p);
+
+    if (fam) {
+      const cur = QTY_BY_PLAN[String(p.id)];
+      QTY_BY_PLAN[String(p.id)] = clampQty(p, cur ?? minU);
+    }
+
+    const cycle = (BILLING==='anual') ? 'yearly' : 'monthly';
+    const amt = calcAmount(p, cycle, QTY_BY_PLAN[String(p.id)] ?? minU);
+
     const isCurrent = (ACTIVE_PLAN_ID && String(ACTIVE_PLAN_ID) === String(p.id));
     const isPending = (!isCurrent && PENDING_PLAN_ID && String(PENDING_PLAN_ID) === String(p.id));
 
     return `
-      <label class="plan-option glass-card ${isCurrent ? 'is-current' : ''} ${isPending ? 'is-pending' : ''}">
+      <label class="plan-option glass-card ${isCurrent ? 'is-current' : ''} ${isPending ? 'is-pending' : ''}"
+             data-plan-id="${escapeAttr(p.id)}"
+             data-is-family="${fam ? '1':'0'}">
         ${isPending ? '<span class="pending-pill" title="Aguardando pagamento">Aguardando pagamento</span>' : ''}
-        <input type="radio" name="plan" value="${escapeAttr(p.id)}" ${isCurrent?'checked':''}>
+        <input class="plan-radio" type="radio" name="plan" value="${escapeAttr(p.id)}" ${isCurrent?'checked':''}>
+
         <div class="po-head">
-          <h3>${escapeHtml(p.name || p.id)}</h3>
+          <h3>${escapeHtml(p.name || p.id)}${fam ? ' <span class="badge badge--fam">Familiar</span>' : ''}</h3>
           ${isCurrent ? '<span class="badge badge--hit">Plano atual</span>' : ''}
         </div>
-        <div class="po-price" data-price-mensal="${priceMensal}" data-price-anual="${priceAnual}">
-          ${BILLING==='anual' ? priceAnual : priceMensal}
+
+        <div class="po-price">
+          ${cycle==='yearly' ? (moneyBR(amt) + ' • anual') : (moneyBR(amt) + '/mês')}
         </div>
+
+        ${fam ? `<div class="family-hint muted"></div>` : ''}
+
         ${descriptionToHtml(p.description)}
+
+        ${fam ? `
+          <div class="family-qty" style="display:none">
+            <div class="qty-row">
+              <span class="muted" style="font-weight:800">Usuários</span>
+              <div class="qty-control" role="group" aria-label="Quantidade de usuários do plano familiar">
+                <button class="qty-btn" type="button" data-qty-act="dec" aria-label="Diminuir">−</button>
+                <div class="qty-value" aria-hidden="true">
+                  <span class="qty-number">${escapeHtml(String(QTY_BY_PLAN[String(p.id)] ?? minU))}</span>
+                  <span class="qty-label"> </span>
+                </div>
+                <input class="qty-input" type="number"
+                  inputmode="numeric"
+                  value="${escapeAttr(QTY_BY_PLAN[String(p.id)] ?? minU)}"
+                  min="${escapeAttr(minU)}"
+                  ${maxU>0 ? `max="${escapeAttr(maxU)}"` : ''}
+                  step="1"
+                  aria-label="Quantidade de usuários">
+                <button class="qty-btn" type="button" data-qty-act="inc" aria-label="Aumentar">+</button>
+              </div>
+            </div>
+            <div class="muted" style="font-size:.82rem;margin-top:6px">
+              Selecione a quantidade de pessoas. O valor ajusta automaticamente.
+            </div>
+          </div>
+        ` : ``}
       </label>
     `;
   }).join('');
@@ -338,10 +481,50 @@ async function renderPlans(){
   const radios = plansHolder.querySelectorAll('input[name="plan"]');
 
   function syncSelected(){
-    cards.forEach(c => c.classList.toggle('is-selected', c.querySelector('input')?.checked));
-    btnContinue.disabled = !plansHolder.querySelector('input[name="plan"]:checked');
+    const checked = plansHolder.querySelector('input[name="plan"]:checked');
+    cards.forEach(c => {
+      const isSel = c.querySelector('input[name="plan"]')?.checked;
+      c.classList.toggle('is-selected', isSel);
+
+      const famBox = c.querySelector('.family-qty');
+      if (famBox) famBox.style.display = isSel ? 'block' : 'none';
+    });
+
+    btnContinue.disabled = !checked;
+    updateAllPlanPrices();
   }
+
   radios.forEach(r => r.addEventListener('change', syncSelected));
+
+  // handlers qty (inc/dec/input) + espelha número
+  plansHolder.querySelectorAll('.plan-option[data-is-family="1"]').forEach(card=>{
+    const pid = card.getAttribute('data-plan-id');
+    const p = PLANS.find(x=>String(x.id)===String(pid));
+    if(!p) return;
+
+    const input = card.querySelector('.qty-input');
+    const btnDec = card.querySelector('[data-qty-act="dec"]');
+    const btnInc = card.querySelector('[data-qty-act="inc"]');
+    const numEl  = card.querySelector('.qty-number');
+
+    function applyQty(newQty){
+      const q = clampQty(p, newQty);
+      QTY_BY_PLAN[pid] = q;
+      if (input) input.value = String(q);
+      if (numEl) numEl.textContent = String(q);
+      updateAllPlanPrices();
+    }
+
+    btnDec?.addEventListener('click', ()=> applyQty((QTY_BY_PLAN[pid] ?? planMinUsers(p)) - 1));
+    btnInc?.addEventListener('click', ()=> applyQty((QTY_BY_PLAN[pid] ?? planMinUsers(p)) + 1));
+
+    input?.addEventListener('input', ()=> applyQty(input.value));
+    input?.addEventListener('change', ()=> applyQty(input.value));
+
+    // garante inicial
+    applyQty(QTY_BY_PLAN[pid] ?? planMinUsers(p));
+  });
+
   syncSelected();
 }
 
@@ -415,17 +598,25 @@ sigClear.addEventListener('click', clearSig);
 window.addEventListener('resize', ()=> { if (termsModal.style.display !== 'none') resizeSigCanvasToCss(); });
 
 /* ===== Term state ===== */
-let PENDING_SELECTION = null; // { planId, planName, cycle, amount }
-let TERM_ACCEPTED_KEY = null; // "planId|cycle"
-function selectionKey(planId, cycle){ return String(planId) + '|' + String(cycle); }
+let PENDING_SELECTION = null; // { planId, planName, cycle, amount, qty_users }
+let TERM_ACCEPTED_KEY = null; // "planId|cycle|qty"
+function selectionKey(planId, cycle, qty){ return String(planId) + '|' + String(cycle) + '|' + String(qty||1); }
 
 function updateTermsBtnState(){
-  const okName = (tsName.value || '').trim().length >= 3;
+  const okName  = (tsName.value || '').trim().length >= 3;
   const okAgree = !!tsAgree.checked;
-  const okSig = hasInk;
-  termsAcceptBtn.disabled = !(okName && okAgree && okSig);
+  const okSig   = hasInk;
+
+  const docVal  = (tsDoc.value || '').trim();
+  const okDoc   = isCpfCnpjValid(docVal);
+
+  // feedback discreto via title (sem mudar visual do layout)
+  tsDoc.title = okDoc ? '' : 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).';
+
+  termsAcceptBtn.disabled = !(okName && okDoc && okAgree && okSig);
 }
 tsName.addEventListener('input', updateTermsBtnState);
+tsDoc.addEventListener('input', updateTermsBtnState);
 tsAgree.addEventListener('change', updateTermsBtnState);
 
 /* ===== Carrega termo quando abrir modal ===== */
@@ -436,7 +627,6 @@ async function loadTermsText(){
     termsTextEl.textContent = resp.text || resp.json?.error || 'Não foi possível carregar o termo.';
     return;
   }
-  // resp.text vem preenchido quando content-type é text/plain
   termsTextEl.textContent = resp.text || '';
 }
 
@@ -448,17 +638,30 @@ btnContinue?.addEventListener('click', async ()=>{
   const p = PLANS.find(x=>String(x.id)===String(val));
   if (!p) return;
 
-  const {pm, py} = pickPrice(p);
   const cycle = (BILLING==='anual') ? 'yearly' : 'monthly';
-  const amount = (BILLING==='anual') ? py : pm;
 
-  PENDING_SELECTION = { planId: val, planName: (p.name || p.id), cycle, amount };
+  // qty somente para familiar
+  let qty = 1;
+  if (isFamilyPlan(p)) {
+    qty = QTY_BY_PLAN[String(p.id)] ?? planMinUsers(p);
+  }
+
+  const amount = calcAmount(p, cycle, qty);
+
+  PENDING_SELECTION = {
+    planId: val,
+    planName: (p.name || p.id),
+    cycle,
+    amount,
+    qty_users: qty
+  };
 
   // reset do termo
   tsAgree.checked = false;
-  tsDoc.value = (tsDoc.value || '').trim();
   clearSig();
-  updateTermsBtnState();
+
+  // puxa defaults do perfil (se vierem do overview) quando estiver vazio
+  applyProfileDefaultsToTermsIfEmpty();
 
   await loadTermsText();
 
@@ -467,9 +670,7 @@ btnContinue?.addEventListener('click', async ()=>{
 
   openModal(termsModal);
 
-  setTimeout(()=>{
-    resizeSigCanvasToCss();
-  }, 50);
+  setTimeout(()=>{ resizeSigCanvasToCss(); }, 50);
 });
 
 /* Fechar termo */
@@ -489,14 +690,23 @@ document.addEventListener('keydown', (e)=>{
 async function submitTermsAcceptance(){
   if(!PENDING_SELECTION) return false;
 
+  const name = (tsName.value || '').trim();
+  const doc  = (tsDoc.value || '').trim();
+
+  if (name.length < 3) { setTermsAlert('Informe seu nome para assinatura.'); return false; }
+  if (!isCpfCnpjValid(doc)) { setTermsAlert('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).'); return false; }
+  if (!tsAgree.checked) { setTermsAlert('Marque que leu e aceitou o Termo e o Regulamento.'); return false; }
+  if (!hasInk) { setTermsAlert('Assine no campo de assinatura.'); return false; }
+
   const sigDataUrl = sigCanvas.toDataURL('image/png');
 
   const payload = new URLSearchParams({
     plan_id: PENDING_SELECTION.planId,
     cycle: PENDING_SELECTION.cycle,
-    signed_name: (tsName.value||'').trim(),
-    signed_doc: (tsDoc.value||'').trim(),
-    signature_png: sigDataUrl
+    signed_name: name,
+    signed_doc: doc,
+    signature_png: sigDataUrl,
+    qty_users: String(PENDING_SELECTION.qty_users || 1)
   });
 
   const resp = await fetchJsonOrText('/?r=api/terms/accept', {
@@ -512,9 +722,8 @@ async function submitTermsAcceptance(){
     return false;
   }
 
-  TERM_ACCEPTED_KEY = selectionKey(PENDING_SELECTION.planId, PENDING_SELECTION.cycle);
+  TERM_ACCEPTED_KEY = selectionKey(PENDING_SELECTION.planId, PENDING_SELECTION.cycle, PENDING_SELECTION.qty_users);
 
-  // opcional: se quiser ver no console se mail falhou
   if (resp.json?.mail) console.log('TERMS MAIL:', resp.json.mail);
 
   return true;
@@ -537,15 +746,18 @@ termsAcceptBtn.addEventListener('click', async ()=>{
 
   closeTerms();
 
+  const qtyLine = (PENDING_SELECTION.qty_users && PENDING_SELECTION.qty_users > 1)
+    ? `<br>Usuários: <strong>${escapeHtml(String(PENDING_SELECTION.qty_users))}</strong>.`
+    : '';
+
   planResumo.innerHTML = `
     Você selecionou <strong>${escapeHtml(PENDING_SELECTION.planName)}</strong> —
     cobrança <strong>${PENDING_SELECTION.cycle==='yearly'?'anual':'mensal'}</strong>.<br>
-    Valor: <strong>${moneyBR(PENDING_SELECTION.amount)}</strong>.
+    Valor: <strong>${moneyBR(PENDING_SELECTION.amount)}</strong>.${qtyLine}
   `;
   btnBoleto.disabled = false;
-  btnCard.disabled   = false;
   openModal(planModal);
-  requestAnimationFrame(()=>{ btnCard?.focus(); });
+  requestAnimationFrame(()=>{ btnBoleto?.focus(); });
 });
 
 planCancel?.addEventListener('click', ()=> closeModal(planModal));
@@ -553,7 +765,7 @@ planModal?.addEventListener('click', (e)=>{ if(e.target===planModal) closeModal(
 
 function ensureTermAcceptedOrWarn(){
   if(!PENDING_SELECTION) { setAlert('Selecione um plano.'); return false; }
-  const needKey = selectionKey(PENDING_SELECTION.planId, PENDING_SELECTION.cycle);
+  const needKey = selectionKey(PENDING_SELECTION.planId, PENDING_SELECTION.cycle, PENDING_SELECTION.qty_users);
   if(TERM_ACCEPTED_KEY !== needKey){
     setAlert('Antes de prosseguir, aceite e assine o Termo.');
     closeModal(planModal);
@@ -577,7 +789,7 @@ btnBoleto?.addEventListener('click', async ()=>{
     <p class="muted">Aguarde. Se aparecer erro, esta tela vai mostrar o motivo.</p>
   `);
 
-  btnBoleto.disabled = true; btnCard.disabled = true;
+  btnBoleto.disabled = true;
 
   try{
     const resp = await fetchJsonOrText('/?r=api/subscriptions/create', {
@@ -586,7 +798,8 @@ btnBoleto?.addEventListener('click', async ()=>{
       body: new URLSearchParams({
         plan_id: PENDING_SELECTION.planId,
         cycle: PENDING_SELECTION.cycle,
-        billingType: 'BOLETO'
+        billingType: 'BOLETO',
+        qty_users: String(PENDING_SELECTION.qty_users || 1)
       }),
       cache: 'no-store'
     });
@@ -602,7 +815,7 @@ btnBoleto?.addEventListener('click', async ()=>{
         <button onclick="window.close()">Fechar</button>
       `);
 
-      btnBoleto.disabled=false; btnCard.disabled=false;
+      btnBoleto.disabled=false;
       return;
     }
 
@@ -631,71 +844,7 @@ btnBoleto?.addEventListener('click', async ()=>{
       <pre>${escapeHtml(String(e?.message || e))}</pre>
       <button onclick="window.close()">Fechar</button>
     `);
-    btnBoleto.disabled=false; btnCard.disabled=false;
-  }
-});
-
-/* ===== Confirmar CARTÃO ===== */
-btnCard?.addEventListener('click', async ()=>{
-  if(!ensureTermAcceptedOrWarn()) return;
-
-  const checkoutWin = window.open('about:blank', '_blank');
-  if(!checkoutWin){ setAlert('Permita pop-ups.'); return; }
-
-  popupWrite(checkoutWin, 'Abrindo checkout…', `
-    <h2 style="margin:0 0 6px">Abrindo checkout…</h2>
-    <p class="muted">Aguarde. Se aparecer erro, esta tela vai mostrar o motivo.</p>
-  `);
-
-  btnBoleto.disabled = true; btnCard.disabled = true;
-
-  try{
-    const resp = await fetchJsonOrText('/?r=api/asaas/checkout-link', {
-      method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body: new URLSearchParams({
-        plan_id: PENDING_SELECTION.planId,
-        cycle: PENDING_SELECTION.cycle,
-        billingType: 'CREDIT_CARD'
-      }),
-      cache: 'no-store'
-    });
-
-    if(!resp.ok){
-      const msg = resp.json?.error || resp.json?.message || resp.text || 'Falha ao abrir checkout.';
-      setAlert(msg);
-
-      popupWrite(checkoutWin, 'Erro ao abrir checkout', `
-        <h2 style="margin:0 0 6px">Não foi possível abrir o checkout</h2>
-        <pre>${escapeHtml(String(msg))}</pre>
-        <button onclick="window.close()">Fechar</button>
-      `);
-
-      btnBoleto.disabled=false; btnCard.disabled=false;
-      return;
-    }
-
-    const j = resp.json || {};
-    if (!j.url) {
-      const msg = 'Checkout não retornou URL.';
-      setAlert(msg);
-      popupWrite(checkoutWin, 'Sem URL', `<pre>${escapeHtml(msg)}</pre><button onclick="window.close()">Fechar</button>`);
-      btnBoleto.disabled=false; btnCard.disabled=false;
-      return;
-    }
-
-    checkoutWin.location.href = j.url;
-    closeModal(planModal);
-    await refreshOverview(true);
-
-  }catch(e){
-    setAlert('Erro ao abrir checkout.');
-    popupWrite(checkoutWin, 'Erro inesperado', `
-      <h2 style="margin:0 0 6px">Erro inesperado</h2>
-      <pre>${escapeHtml(String(e?.message || e))}</pre>
-      <button onclick="window.close()">Fechar</button>
-    `);
-    btnBoleto.disabled=false; btnCard.disabled=false;
+    btnBoleto.disabled=false;
   }
 });
 
@@ -842,9 +991,28 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   color:#0f172a;
 }
 .plan-option:hover{ box-shadow:0 8px 24px rgba(15,23,42,.10); transform:translateY(-1px); }
-.plan-option input{ position:absolute; opacity:0; pointer-events:none; }
+
+/* FIX CRÍTICO:
+   Antes estava .plan-option input {opacity:0} e isso escondia o qty-input do familiar.
+   Agora escondemos SOMENTE o rádio de seleção. */
+.plan-option > input.plan-radio{
+  position:absolute;
+  opacity:0;
+  pointer-events:none;
+}
+
 .plan-option .po-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .plan-option .po-head h3{ margin:0; font-size:1rem; font-weight:800; }
+.plan-option .po-price{ margin:8px 0 6px; font-weight:800; color:#0f172a; }
+
+.badge.badge--fam{
+  display:inline-flex; align-items:center;
+  padding:4px 10px; border-radius:999px;
+  font-size:.76rem; font-weight:900;
+  background:#eef2ff; color:#3730a3;
+  border:1px solid #c7d2fe;
+  margin-left:6px;
+}
 .plan-option .badge.badge--hit{
   display:inline-flex; align-items:center;
   padding:4px 10px; border-radius:999px;
@@ -852,7 +1020,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   background:#ecfeff; color:#0f766e;
   border:1px solid #5eead4;
 }
-.plan-option .po-price{ margin:8px 0 6px; font-weight:800; color:#0f172a; }
+
 .plan-option .feat{ margin:6px 0 0; padding-left:0; }
 .plan-option .feat li{
   margin:4px 0; list-style:none;
@@ -875,6 +1043,82 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   border-radius:999px; padding:5px 8px;
   border:1px solid rgba(234,179,8,.65);
   background:#fef9c3;
+}
+
+/* Familiar - seletor qty */
+.family-qty{
+  margin-top:10px;
+  padding:10px 10px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.45);
+  background:#f8fafc;
+}
+.qty-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.qty-control{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:#ffffff;
+  border:1px solid rgba(148,163,184,.55);
+  border-radius:999px;
+  padding:4px;
+}
+.qty-btn{
+  width:34px;
+  height:32px;
+  border-radius:999px;
+  border:0;
+  background:#e5e7eb;
+  color:#111827;
+  font-weight:900;
+  cursor:pointer;
+}
+.qty-btn:active{ transform:translateY(1px); }
+
+/* número visível (pedido: "+ (número de indivíduos)") */
+.qty-value{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  padding:0 6px;
+  font-weight:900;
+  color:#0f172a;
+  user-select:none;
+}
+.qty-number{
+  font-size:.95rem;
+  line-height:1;
+  min-width:16px;
+  text-align:center;
+}
+.qty-label{
+  font-size:.8rem;
+  font-weight:800;
+  color:#64748b;
+}
+
+/* input continua existindo e visível, e também serve para digitar manualmente */
+.qty-input{
+  width:72px;
+  text-align:center;
+  border:1px solid rgba(148,163,184,.55);
+  border-radius:999px;
+  padding:6px 8px;
+  outline:none;
+  font-weight:900;
+  color:#0f172a;
+  background:#fff;
+}
+
+/* hint */
+.family-hint{
+  margin-top:2px;
+  font-size:.82rem;
 }
 
 /* Ações */
@@ -928,7 +1172,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
 }
 .icon-x:hover{ background:#f3f4ff; }
 
-/* IMPORTANT: scroll do conteúdo do modal (evita encavalado) */
+/* scroll do conteúdo do modal */
 .terms-body{
   display:grid;
   grid-template-columns: 1.25fr .9fr;
@@ -951,7 +1195,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   display:flex;
   flex-direction:column;
 
-  min-height:0; /* evita overflow “vazar” no grid */
+  min-height:0;
 }
 .terms-docbar{
   display:flex;
@@ -963,8 +1207,8 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   border-bottom:1px solid rgba(148,163,184,.35);
 }
 .terms-text{
-  flex:1 1 auto;      /* garante que ocupa espaço do termo */
-  min-height:0;        /* essencial para overflow dentro de flex */
+  flex:1 1 auto;
+  min-height:0;
   padding:14px;
   overflow:auto;
   white-space:pre-wrap;
@@ -973,13 +1217,9 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   background:#ffffff;
   max-height:520px;
 }
+.terms-doc.is-collapsed .terms-text{ display:none; }
 
-/* recolhido: remove do fluxo (não encavala) */
-.terms-doc.is-collapsed .terms-text{
-  display:none;
-}
-
-/* form (dá fundo para não “misturar” visualmente com o termo) */
+/* form */
 .terms-form{
   background:#ffffff;
   border:1px solid rgba(148,163,184,.35);
@@ -1057,10 +1297,12 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   .terms-grid{ grid-template-columns:1fr; }
   #sig-canvas{ height:190px; }
 
-  /* no mobile, quando expandir, termo vira caixa pequena com scroll */
   .terms-doc.is-expanded .terms-text{
     display:block;
     max-height:220px;
   }
+
+  .qty-btn{ width:38px; height:36px; }
+  .qty-input{ width:84px; }
 }
 </style>

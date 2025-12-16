@@ -1,487 +1,286 @@
 <?php
-// app/controllers/Api/PartnerAdsController.php
-declare(strict_types=1);
-
 namespace Api;
+
+use PDO;
 
 require_once __DIR__ . '/../../core/DB.php';
 require_once __DIR__ . '/../../core/Auth.php';
 require_once __DIR__ . '/../../core/Json.php';
 require_once __DIR__ . '/../../services/Asaas.php';
+require_once __DIR__ . '/../../services/Membership.php';
 
-final class PartnerAdsController
+class AsaasController
 {
-  // ======== PLANS (parceiro enxerga só ativos) ========
-  // GET /?r=api/partner/ads/plans
-  public function listPlans(): void
+  private function ensureSchema(PDO $pdo): void
   {
-    $rows = \DB::pdo()
-      ->query("SELECT id,name,description,view_quota,price,status,sort_order
-               FROM ad_plans
-               WHERE status='active'
-               ORDER BY sort_order, id")
-      ->fetchAll(\PDO::FETCH_ASSOC);
+    // Tabelas mínimas usadas aqui (se já existem, não altera)
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS invoices (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        subscription_id INT NULL,
+        asaas_invoice_id VARCHAR(80) UNIQUE,
+        value DECIMAL(10,2) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        due_date DATE NULL,
+        paid_at DATETIME NULL,
+        raw JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY sub_idx (subscription_id),
+        KEY status_idx (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
 
-    \Json::ok(['ok' => true, 'data' => $rows]);
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS webhooks_log (
+        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        provider VARCHAR(40) NOT NULL,
+        event VARCHAR(80) NOT NULL,
+        signature TEXT NULL,
+        payload JSON NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
   }
 
-  // ======== CAMPAIGNS ========
-  // POST /?r=api/partner/ads/campaign/save
-  public function saveCampaign(): void
+  private function h(string $k): string
   {
-    $me = \Auth::user();
-    if (!$me || ($me['role'] ?? 'member') !== 'partner') {
-      \Json::fail('Unauthorized', 401);
-    }
-
-    $pdo = \DB::pdo();
-    $pdo->beginTransaction();
-
-    try {
-      // garante partner_id (cria se não existir)
-      $stp = $pdo->prepare("SELECT id FROM partners WHERE user_id=? LIMIT 1");
-      $stp->execute([$me['id']]);
-      $p = $stp->fetch(\PDO::FETCH_ASSOC);
-      if (!$p) {
-        $ins = $pdo->prepare("INSERT INTO partners (user_id, business_name, status) VALUES (?,?, 'pending')");
-        $ins->execute([$me['id'], $me['name'] ?? 'Parceiro']);
-        $p = ['id' => (int)$pdo->lastInsertId()];
-      }
-
-      $id         = (int)($_POST['id'] ?? 0);
-      $title      = trim($_POST['title'] ?? '');
-      $target_url = trim($_POST['target_url'] ?? '');
-
-      $img_sky_1    = trim($_POST['img_sky_1'] ?? '');
-      $img_sky_2    = trim($_POST['img_sky_2'] ?? '');
-      $img_top_468  = trim($_POST['img_top_468'] ?? '');
-      $img_square_1 = trim($_POST['img_square_1'] ?? '');
-      $img_square_2 = trim($_POST['img_square_2'] ?? '');
-
-      if ($title === '') { \Json::fail('Título é obrigatório'); }
-
-      if ($id > 0) {
-        // update do dono
-        $chk = $pdo->prepare("SELECT id FROM partner_ad_campaigns WHERE id=? AND user_id=?");
-        $chk->execute([$id, $me['id']]);
-        if (!$chk->fetch()) { \Json::fail('Campanha não encontrada', 404); }
-
-        $sql = "UPDATE partner_ad_campaigns
-                SET title=?, target_url=?, img_sky_1=?, img_sky_2=?,
-                    img_top_468=?, img_square_1=?, img_square_2=?
-                WHERE id=?";
-        $pdo->prepare($sql)->execute([
-          $title, $target_url, $img_sky_1, $img_sky_2, $img_top_468, $img_square_1, $img_square_2, $id
-        ]);
-
-        $pdo->commit();
-        \Json::ok(['ok'=>true, 'data'=>['id'=>$id]]);
-      } else {
-        // create — nasce inativa
-        $sql = "INSERT INTO partner_ad_campaigns
-                (partner_id, user_id, title, target_url,
-                 img_sky_1, img_sky_2, img_top_468, img_square_1, img_square_2, status)
-                VALUES (?,?,?,?,?,?,?,?,?, 'inactive')";
-        $pdo->prepare($sql)->execute([
-          $p['id'], $me['id'], $title, $target_url,
-          $img_sky_1, $img_sky_2, $img_top_468, $img_square_1, $img_square_2
-        ]);
-
-        $cid = (int)$pdo->lastInsertId();
-        $pdo->commit();
-        \Json::ok(['ok'=>true, 'data'=>['id'=>$cid, 'status'=>'inactive']]);
-      }
-    } catch (\Throwable $e) {
-      $pdo->rollBack();
-      \Json::fail($e->getMessage(), 500);
-    }
+    $kk = 'HTTP_' . strtoupper(str_replace('-', '_', $k));
+    return (string)($_SERVER[$kk] ?? '');
   }
 
-  // GET /?r=api/partner/ads/campaigns
-  public function myCampaigns(): void
+  private function normStatus(?string $asaasStatus): string
   {
-    $me = \Auth::user();
-    if (!$me || ($me['role'] ?? 'member') !== 'partner') {
-      \Json::fail('Unauthorized', 401);
-    }
+    $s = strtoupper(trim((string)$asaasStatus));
 
-    $sql = "SELECT id, title, target_url,
-                   img_sky_1, img_sky_2, img_top_468, img_square_1, img_square_2,
-                   status, created_at
-            FROM partner_ad_campaigns
-            WHERE user_id=?
-            ORDER BY created_at DESC";
-    $st  = \DB::pdo()->prepare($sql);
-    $st->execute([$me['id']]);
-    $rows = $st->fetchAll(\PDO::FETCH_ASSOC);
+    // Principais estados (Asaas)
+    if (in_array($s, ['RECEIVED', 'CONFIRMED'], true)) return 'paid';
+    if (in_array($s, ['PENDING'], true)) return 'pending';
+    if (in_array($s, ['OVERDUE'], true)) return 'overdue';
+    if (in_array($s, ['REFUNDED'], true)) return 'refunded';
+    if (in_array($s, ['CANCELED', 'DELETED'], true)) return 'canceled';
 
-    \Json::ok(['ok'=>true, 'data'=>$rows]);
+    // fallback conservador
+    return 'pending';
   }
 
-  // ======== ORDER (compra do plano) ========
-  // POST /?r=api/partner/ads/order
-  public function createOrder(): void
+  private function parseYmd(?string $s): ?string
   {
-    $me = \Auth::user();
-    if (!$me || ($me['role'] ?? 'member') !== 'partner') {
-      \Json::fail('Unauthorized', 401);
-    }
-
-    $planId     = (int)($_POST['plan_id'] ?? 0);
-    $campaignId = (int)($_POST['campaign_id'] ?? 0);
-    if ($planId <= 0 || $campaignId <= 0) {
-      \Json::fail('Plano e campanha são obrigatórios');
-    }
-
-    $pdo = \DB::pdo();
-
-    // 1) Plano ativo
-    $stPlan = $pdo->prepare("SELECT id, view_quota, price FROM ad_plans WHERE id=? AND status='active'");
-    $stPlan->execute([$planId]);
-    $plan = $stPlan->fetch(\PDO::FETCH_ASSOC);
-    if (!$plan) { \Json::fail('Plano inválido ou inativo'); }
-
-    // 2) Campanha do usuário
-    $stCamp = $pdo->prepare("SELECT c.id, c.partner_id, c.user_id, c.title
-                             FROM partner_ad_campaigns c
-                             WHERE c.id=? AND c.user_id=?");
-    $stCamp->execute([$campaignId, $me['id']]);
-    $camp = $stCamp->fetch(\PDO::FETCH_ASSOC);
-    if (!$camp) { \Json::fail('Campanha não encontrada'); }
-
-    // 3) Garante partner_id
-    $partnerId = (int)($camp['partner_id'] ?? 0);
-    if ($partnerId <= 0) {
-      $stP = $pdo->prepare("SELECT id FROM partners WHERE user_id=? LIMIT 1");
-      $stP->execute([$me['id']]);
-      $p = $stP->fetch(\PDO::FETCH_ASSOC);
-
-      if (!$p) {
-        $ins = $pdo->prepare("INSERT INTO partners (user_id, business_name, status) VALUES (?,?, 'pending')");
-        $ins->execute([$me['id'], $me['name'] ?? 'Parceiro']);
-        $partnerId = (int)$pdo->lastInsertId();
-      } else {
-        $partnerId = (int)$p['id'];
-      }
-
-      $pdo->prepare("UPDATE partner_ad_campaigns SET partner_id=? WHERE id=?")
-          ->execute([$partnerId, $campaignId]);
-    }
-
-    // 4) Detecta se a tabela tem campaign_id
-    $hasCampaignCol = (bool)$pdo->query(
-      "SELECT COUNT(*) FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME   = 'partner_ad_orders'
-         AND COLUMN_NAME  = 'campaign_id'"
-    )->fetchColumn();
-
-    // 5) Cria pedido pendente
-    if ($hasCampaignCol) {
-      $sql = "INSERT INTO partner_ad_orders
-              (partner_id, user_id, plan_id, campaign_id, title,
-               banner_image, target_url, placements, specialties,
-               status, quota_total, quota_used, amount)
-              VALUES (?,?,?,?,?, NULL, NULL, '[]', '[]',
-                      'pending_payment', ?, 0, ?)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->execute([
-        $partnerId,
-        $me['id'],
-        $plan['id'],
-        $campaignId,
-        (string)($camp['title'] ?? ''),
-        (int)$plan['view_quota'],
-        (float)$plan['price'],
-      ]);
-    } else {
-      $sql = "INSERT INTO partner_ad_orders
-              (partner_id, user_id, plan_id, title,
-               banner_image, target_url, placements, specialties,
-               status, quota_total, quota_used, amount)
-              VALUES (?,?,?,?,
-                      NULL, NULL, '[]', '[]',
-                      'pending_payment', ?, 0, ?)";
-      $stmt = $pdo->prepare($sql);
-      $stmt->execute([
-        $partnerId,
-        $me['id'],
-        $plan['id'],
-        (string)($camp['title'] ?? ''),
-        (int)$plan['view_quota'],
-        (float)$plan['price'],
-      ]);
-    }
-
-    \Json::ok([
-      'ok'   => true,
-      'data' => ['order_id' => $pdo->lastInsertId(), 'status' => 'pending_payment']
-    ]);
-  }
-
-  // GET /?r=api/partner/ads/my
-  public function myOrders(): void
-  {
-    $me = \Auth::user();
-    if (!$me || ($me['role'] ?? 'member') !== 'partner') {
-      \Json::fail('Unauthorized', 401);
-    }
-
-    $pdo = \DB::pdo();
-
-    // Verifica se partner_ad_orders.campaign_id existe para montar SQL correto
-    $hasCampaignCol = (bool)$pdo->query(
-      "SELECT COUNT(*) FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE()
-         AND TABLE_NAME   = 'partner_ad_orders'
-         AND COLUMN_NAME  = 'campaign_id'"
-    )->fetchColumn();
-
-    if ($hasCampaignCol) {
-      $sql = "SELECT o.*, p.name AS plan_name,
-                     c.title AS campaign_title, c.status AS campaign_status
-              FROM partner_ad_orders o
-              JOIN ad_plans p ON p.id=o.plan_id
-              LEFT JOIN partner_ad_campaigns c ON c.id=o.campaign_id
-              WHERE o.user_id=?
-              ORDER BY o.created_at DESC";
-    } else {
-      $sql = "SELECT o.*, p.name AS plan_name,
-                     NULL AS campaign_title, NULL AS campaign_status
-              FROM partner_ad_orders o
-              JOIN ad_plans p ON p.id=o.plan_id
-              WHERE o.user_id=?
-              ORDER BY o.created_at DESC";
-    }
-
-    $st  = $pdo->prepare($sql);
-    $st->execute([$me['id']]);
-    $rows = $st->fetchAll(\PDO::FETCH_ASSOC);
-
-    \Json::ok(['ok' => true, 'data' => $rows]);
-  }
-
-  // ======== UPLOAD (retro-compatível) ========
-  // POST /?r=api/partner/ads/upload
-  public function uploadBanner(): void
-  {
-    $me = \Auth::user();
-    if (!$me || ($me['role'] ?? 'member') !== 'partner') {
-      \Json::fail('Unauthorized', 401);
-    }
-
-    $pdo        = \DB::pdo();
-    $orderId    = (int)($_POST['order_id'] ?? 0);
-    $campaignId = (int)($_POST['campaign_id'] ?? 0);
-    $slot       = trim($_POST['slot'] ?? ''); // img_sky_1|img_sky_2|img_top_468|img_square_1|img_square_2
-    $bannerUrl  = trim($_POST['banner_image'] ?? '');
-
-    if ($bannerUrl === '') {
-      \Json::fail('URL do banner é obrigatória');
-    }
-
-    if ($campaignId > 0 && $slot !== '') {
-      $allowed = ['img_sky_1','img_sky_2','img_top_468','img_square_1','img_square_2'];
-      if (!in_array($slot, $allowed, true)) {
-        \Json::fail('Slot inválido');
-      }
-
-      $chk = $pdo->prepare("SELECT id FROM partner_ad_campaigns WHERE id=? AND user_id=?");
-      $chk->execute([$campaignId, $me['id']]);
-      if (!$chk->fetch()) {
-        \Json::fail('Campanha não encontrada', 404);
-      }
-
-      $sql = "UPDATE partner_ad_campaigns SET {$slot}=? WHERE id=?";
-      $st  = $pdo->prepare($sql);
-      $st->execute([$bannerUrl, $campaignId]);
-
-      \Json::ok(['ok'=>true, 'data'=>['campaign_id'=>$campaignId, 'slot'=>$slot, 'url'=>$bannerUrl]]);
-    } else {
-      if ($orderId <= 0) {
-        \Json::fail('Pedido inválido');
-      }
-      $st = $pdo->prepare("UPDATE partner_ad_orders SET banner_image=? WHERE id=? AND user_id=?");
-      $st->execute([$bannerUrl, $orderId, $me['id']]);
-      \Json::ok(['ok'=>true, 'data'=>['order_id'=>$orderId, 'banner_image'=>$bannerUrl]]);
-    }
-  }
-
-  // ======== PAGAMENTO via ASAAS (one-time) ========
-  // POST /?r=api/partner/ads/pay
-  public function pay(): void
-  {
-    $me = \Auth::user();
-    if (!$me || ($me['role'] ?? 'member') !== 'partner') {
-      \Json::fail('Unauthorized', 401);
-    }
-
-    $orderId = (int)($_POST['order_id'] ?? 0);
-    if ($orderId <= 0) \Json::fail('Pedido inválido');
-
-    $pdo = \DB::pdo();
-
-    // carrega o pedido
-    $st = $pdo->prepare("SELECT o.*, p.name AS plan_name
-                         FROM partner_ad_orders o
-                         JOIN ad_plans p ON p.id=o.plan_id
-                         WHERE o.id=? AND o.user_id=?");
-    $st->execute([$orderId, $me['id']]);
-    $o = $st->fetch(\PDO::FETCH_ASSOC);
-    if (!$o) \Json::fail('Pedido não encontrado', 404);
-
-    if (in_array(($o['status'] ?? ''), ['active','exhausted'], true)) {
-      \Json::fail('Pedido já processado');
-    }
-
-    $amount = (float)($o['amount'] ?? 0.0);
-    if ($amount <= 0) {
-      \Json::fail('Valor do pedido inválido');
-    }
-
-    // dados do cliente
-    $u = $pdo->prepare("SELECT name,email,document,phone FROM users WHERE id=? LIMIT 1");
-    $u->execute([$me['id']]);
-    $usr = $u->fetch(\PDO::FETCH_ASSOC) ?: [];
-    $name   = $usr['name'] ?? ($me['name'] ?? 'Cliente');
-    $email  = $usr['email'] ?? null;
-    $doc    = preg_replace('/\D+/', '', (string)($usr['document'] ?? ''));
-    $mobile = preg_replace('/\D+/', '', (string)($usr['phone'] ?? ''));
-
-    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-      \Json::fail('E-mail do cliente inválido', 422);
-    }
-
-    // URLs de retorno (só se for HTTPS sem porta)
-    [$successUrl, $cancelUrl] = $this->buildReturnUrls();
-
-    $payload = [
-      'billingTypes' => ['CREDIT_CARD','BOLETO'],
-      'chargeTypes'  => ['ONE_TIME'],
-      'customerData' => [
-        'name'        => $name,
-        'email'       => $email,
-        'cpfCnpj'     => ($doc ?: null),
-        'mobilePhone' => ($mobile ?: null),
-      ],
-      'payment' => [
-        'value'       => $amount,
-        'description' => "Publicidade {$o['plan_name']} • Pedido #{$orderId}",
-      ],
-      'externalReference' => 'ad|'.$orderId.'|'.$me['id'],
-    ];
-    if ($successUrl) $payload['successUrl'] = $successUrl;
-    if ($cancelUrl)  $payload['cancelUrl']  = $cancelUrl;
-
-    // DEBUG opcional: salvar payload (ativar definindo DEBUG_ASAAS=1 no env)
-    if ((getenv('DEBUG_ASAAS') ?: '') === '1') {
-      @file_put_contents(sys_get_temp_dir().'/asaas_checkout_payload.json', json_encode($payload, JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
-    }
-
-    try {
-      $asaas = new \App\Services\Asaas();
-      $res   = $asaas->createCheckout($payload);
-
-      $id  = $res['id'] ?? null;
-      $url = $res['url'] ?? ($res['redirectUrl'] ?? null);
-
-      // salva checkout_id se a coluna existir
-      $cols = $pdo->query("
-        SELECT LOWER(COLUMN_NAME) FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'partner_ad_orders'
-      ")->fetchAll(\PDO::FETCH_COLUMN);
-      if ($id && in_array('asaas_checkout_id', $cols, true)) {
-        $pdo->prepare("UPDATE partner_ad_orders SET asaas_checkout_id=? WHERE id=?")->execute([$id, $orderId]);
-      }
-
-      if (!$url) {
-        $base = getenv('ASAAS_BASE') ?: (defined('ASAAS_BASE') ? ASAAS_BASE : 'https://api-sandbox.asaas.com/v3');
-        $isSb = stripos($base, 'sandbox') !== false;
-        $url  = ($isSb ? 'https://sandbox.asaas.com/checkout?id='
-                       : 'https://asaas.com/checkout?id=' ) . urlencode((string)$id);
-      }
-
-      \Json::ok(['ok'=>true, 'data'=>['checkout_id'=>$id, 'checkout_url'=>$url]]);
-    } catch (\Throwable $e) {
-      $msg = $e->getMessage();
-      if (stripos($msg, 'URL rejected') !== false || stripos($msg, 'Port number') !== false) {
-        \Json::fail('O Asaas rejeitou as URLs de retorno. Verifique APP_PUBLIC_URL (precisa ser HTTPS sem porta).', 502);
-      }
-      \Json::fail('Asaas HTTP error: '.$msg, 502);
-    }
+    $v = trim((string)$s);
+    if ($v === '') return null;
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) return $v;
+    return null;
   }
 
   /**
-   * Monta success/cancel apenas se APP_PUBLIC_URL for HTTPS e sem porta.
-   * Evita o erro “Port number was not a decimal number between 0 and 65535”.
+   * POST /?r=api/asaas/webhook  (Content-Type text/plain no dispatcher)
+   * Espera JSON do Asaas.
    */
-  private function buildReturnUrls(): array
+  public function webhook(): void
   {
-    $raw = getenv('APP_PUBLIC_URL') ?: (defined('APP_PUBLIC_URL') ? APP_PUBLIC_URL : '');
-    $raw = trim((string)$raw);
-    if ($raw === '') return [null, null];
+    $pdo = \DB::pdo();
+    $this->ensureSchema($pdo);
 
-    $u = @parse_url($raw);
-    if (!$u || !isset($u['scheme'], $u['host'])) return [null, null];
-    if (strtolower($u['scheme']) !== 'https') return [null, null];
-    if (isset($u['port'])) return [null, null]; // bloqueia porta explícita
+    $raw = file_get_contents('php://input');
+    $sig = $this->h('asaas-signature') ?: $this->h('x-asaas-signature') ?: $this->h('signature');
 
-    // reconstrói base sem porta
-    $base = 'https://' . $u['host'] . (isset($u['path']) ? rtrim($u['path'], '/') : '');
-    $success = $base . '/?r=partner/dashboard&paid=1';
-    $cancel  = $base . '/?r=partner/dashboard&cancel=1';
-    return [$success, $cancel];
-  }
+    // Asaas geralmente manda: { event: "...", payment: {...} } (ou subscription)
+    $payload = json_decode((string)$raw, true);
+    if (!is_array($payload)) {
+      http_response_code(200);
+      echo "OK"; // não re-tenta eternamente
+      return;
+    }
 
-  // ======== PIXEL ========
-  // GET /?r=api/ads/track&ad=ID
-  public function track(): void
-  {
-    $adId = (int)($_GET['ad'] ?? 0);
+    $event = (string)($payload['event'] ?? 'unknown');
 
-    if ($adId > 0) {
-      $pdo = \DB::pdo();
-      $st  = $pdo->prepare("SELECT o.id, o.status, o.quota_total, o.quota_used,
-                                   c.status AS camp_status, o.start_at, o.end_at
-                            FROM partner_ad_orders o
-                            LEFT JOIN partner_ad_campaigns c ON c.id=o.campaign_id
-                            WHERE o.id=?");
-      $st->execute([$adId]);
+    // Loga webhook
+    try {
+      $st = $pdo->prepare("INSERT INTO webhooks_log (provider, event, signature, payload) VALUES ('asaas', ?, ?, ?)");
+      $st->execute([
+        $event,
+        $sig ?: null,
+        json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+      ]);
+    } catch (\Throwable $e) {
+      // não derruba o webhook por falha de log
+    }
 
-      if ($ad = $st->fetch(\PDO::FETCH_ASSOC)) {
-        $nowOk = true;
-        if (!empty($ad['start_at']) && time() < strtotime((string)$ad['start_at'])) $nowOk = false;
-        if (!empty($ad['end_at'])   && time() > strtotime((string)$ad['end_at']))   $nowOk = false;
+    // Pagamento (assinatura)
+    $payment = $payload['payment'] ?? null;
+    if (!is_array($payment)) {
+      // Alguns eventos são de subscription; por ora só reconhecemos pagamento.
+      http_response_code(200);
+      echo "OK";
+      return;
+    }
 
-        if ($ad['status'] === 'active'
-            && ($ad['camp_status'] ?? 'active') === 'active'
-            && $nowOk
-            && (int)$ad['quota_used'] < (int)$ad['quota_total']) {
+    $paymentId  = (string)($payment['id'] ?? '');
+    $payStatus  = (string)($payment['status'] ?? '');
+    $payValue   = (float)($payment['value'] ?? 0);
+    $payDueDate = $this->parseYmd($payment['dueDate'] ?? null);
 
-          $ins = $pdo->prepare("INSERT INTO partner_ad_impressions (ad_order_id, ip, ua, referer)
-                                VALUES (?,?,?,?)");
-          $ins->execute([
-            $ad['id'],
-            $_SERVER['REMOTE_ADDR']      ?? null,
-            $_SERVER['HTTP_USER_AGENT']  ?? null,
-            $_SERVER['HTTP_REFERER']     ?? null
-          ]);
+    // Assinatura do Asaas associada ao pagamento
+    $asaasSubId = (string)(
+      $payment['subscription'] ??
+      $payment['subscriptionId'] ??
+      ''
+    );
 
-          $pdo->prepare("UPDATE partner_ad_orders SET quota_used = quota_used + 1 WHERE id=?")
-              ->execute([$ad['id']]);
+    if ($paymentId === '' || $asaasSubId === '') {
+      http_response_code(200);
+      echo "OK";
+      return;
+    }
 
-          if (((int)$ad['quota_used'] + 1) >= (int)$ad['quota_total']) {
-            $pdo->prepare("UPDATE partner_ad_orders SET status='exhausted' WHERE id=?")
-                ->execute([$ad['id']]);
-          }
-        }
+    // Localiza assinatura local
+    $stSub = $pdo->prepare("
+      SELECT id, user_id, plan_id, cycle, qty_users, amount
+      FROM subscriptions
+      WHERE asaas_subscription_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+    ");
+    $stSub->execute([$asaasSubId]);
+    $subLocal = $stSub->fetch(PDO::FETCH_ASSOC);
+
+    // Mesmo que não exista localmente, ainda registramos invoice para auditoria
+    $subscriptionLocalId = $subLocal ? (int)$subLocal['id'] : null;
+
+    // Status local normalizado
+    $localInvoiceStatus = $this->normStatus($payStatus);
+
+    // Cobertura: pega nextDueDate da assinatura no Asaas (melhor que dueDate da cobrança atual)
+    $coverageUntil = $payDueDate; // fallback
+    try {
+      $asaas = new \App\Services\Asaas();
+      $asaasSub = $asaas->getSubscription($asaasSubId);
+      $nd = $this->parseYmd($asaasSub['nextDueDate'] ?? null);
+      if ($nd) $coverageUntil = $nd;
+    } catch (\Throwable $e) {
+      // mantém fallback
+    }
+
+    // paid_at: usa paymentDate se houver, senão NOW()
+    $paidAt = null;
+    $paymentDate = (string)($payment['paymentDate'] ?? '');
+    if ($paymentDate !== '') {
+      // Asaas costuma mandar YYYY-MM-DD; guardamos como datetime no início do dia
+      $paidAt = preg_match('/^\d{4}-\d{2}-\d{2}$/', $paymentDate) ? ($paymentDate . ' 00:00:00') : null;
+    }
+
+    // Upsert invoice
+    try {
+      $pdo->prepare("
+        INSERT INTO invoices (subscription_id, asaas_invoice_id, value, status, due_date, paid_at, raw)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          subscription_id = VALUES(subscription_id),
+          value = VALUES(value),
+          status = VALUES(status),
+          due_date = VALUES(due_date),
+          paid_at = COALESCE(VALUES(paid_at), paid_at),
+          raw = VALUES(raw)
+      ")->execute([
+        $subscriptionLocalId,
+        $paymentId,
+        $payValue > 0 ? $payValue : 0,
+        $localInvoiceStatus,
+        $coverageUntil,
+        $localInvoiceStatus === 'paid' ? ($paidAt ?: date('Y-m-d H:i:s')) : null,
+        json_encode($payment, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+      ]);
+    } catch (\Throwable $e) {
+      // não força retry do Asaas
+    }
+
+    // Se foi pago/confirmado/recebido, promove assinatura local e usuário
+    if ($localInvoiceStatus === 'paid' && $subLocal) {
+      $userId = (int)$subLocal['user_id'];
+      $planId = (string)$subLocal['plan_id'];
+
+      try {
+        $pdo->beginTransaction();
+
+        // Ativa esta assinatura
+        $pdo->prepare("
+          UPDATE subscriptions
+          SET status='ativa',
+              renew_at=?,
+              amount=CASE WHEN ? > 0 THEN ? ELSE amount END
+          WHERE id=?
+        ")->execute([
+          $coverageUntil,
+          $payValue,
+          $payValue,
+          (int)$subLocal['id'],
+        ]);
+
+        // Suspende outras (evita concorrência no overview/badges)
+        $pdo->prepare("
+          UPDATE subscriptions
+          SET status='suspensa'
+          WHERE user_id=? AND id<>? AND status<>'cancelada'
+        ")->execute([$userId, (int)$subLocal['id']]);
+
+        // Atualiza plano atual do usuário (isso alimenta carteirinha/overview)
+        $pdo->prepare("UPDATE users SET current_plan_id=? WHERE id=?")
+            ->execute([$planId, $userId]);
+
+        $pdo->commit();
+      } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
       }
     }
 
-    // pixel 1x1
-    header('Content-Type: image/gif');
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-    echo base64_decode('R0lGODlhAQABAPAAAAAAAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');
-    exit;
+    http_response_code(200);
+    echo "OK";
+  }
+
+  /**
+   * GET/POST /?r=api/asaas/checkout-link
+   * Retorna URL (boleto/invoice) para uma fatura já existente.
+   * Aceita: invoice_id (local) OU asaas_invoice_id/payment_id (asaas).
+   */
+  public function checkoutLink(): void
+  {
+    \Auth::requireRole(['member','admin']);
+    $pdo = \DB::pdo();
+    $this->ensureSchema($pdo);
+
+    $invoiceId = (int)($_REQUEST['invoice_id'] ?? 0);
+    $asaasId   = trim((string)($_REQUEST['asaas_invoice_id'] ?? ($_REQUEST['payment_id'] ?? '')));
+
+    // 1) se veio invoice_id local, tenta extrair do raw
+    if ($invoiceId > 0) {
+      $st = $pdo->prepare("SELECT asaas_invoice_id, raw FROM invoices WHERE id=? LIMIT 1");
+      $st->execute([$invoiceId]);
+      $row = $st->fetch(PDO::FETCH_ASSOC);
+
+      if ($row) {
+        $raw = json_decode((string)($row['raw'] ?? ''), true);
+        $url = null;
+        if (is_array($raw)) {
+          $url = $raw['bankSlipUrl'] ?? $raw['invoiceUrl'] ?? null;
+        }
+        if ($url) {
+          \Json::ok(['ok'=>true, 'url'=>$url]);
+          return;
+        }
+        if (!$asaasId) $asaasId = (string)($row['asaas_invoice_id'] ?? '');
+      }
+    }
+
+    // 2) fallback: busca no Asaas pelo paymentId
+    if ($asaasId === '') \Json::fail('missing_invoice', 422);
+
+    try {
+      $asaas = new \App\Services\Asaas();
+      $p = $asaas->getPaymentById($asaasId);
+      $url = $p['bankSlipUrl'] ?? $p['invoiceUrl'] ?? null;
+      if (!$url) \Json::fail('no_payment_url', 404);
+      \Json::ok(['ok'=>true, 'url'=>$url, 'payment'=>$asaasId]);
+    } catch (\Throwable $e) {
+      \Json::fail($e->getMessage(), 500);
+    }
   }
 }

@@ -13,20 +13,77 @@ class SubscriptionsController
   private function currentDb(PDO $pdo): string {
     return (string)$pdo->query("SELECT DATABASE()")->fetchColumn();
   }
+
   private function tableExists(PDO $pdo, string $db, string $table): bool {
     $q = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME=?");
     $q->execute([$db, $table]);
     return (int)$q->fetchColumn() > 0;
   }
+
   private function colExists(PDO $pdo, string $db, string $table, string $col): bool {
     $q = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?");
     $q->execute([$db, $table, $col]);
     return (int)$q->fetchColumn() > 0;
   }
 
+  private function addColumnIfMissing(PDO $pdo, string $db, string $table, string $col, string $ddl): void {
+    if (!$this->colExists($pdo, $db, $table, $col)) {
+      $pdo->exec($ddl);
+    }
+  }
+
+  private function planCols(PDO $pdo): array {
+    return $pdo->query("
+      SELECT LOWER(COLUMN_NAME)
+      FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'plans'
+    ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+  }
+
+  private function clampInt($v, int $min, int $max = PHP_INT_MAX): int {
+    $n = (int)$v;
+    if ($n < $min) $n = $min;
+    if ($max !== PHP_INT_MAX && $n > $max) $n = $max;
+    return $n;
+  }
+
+  private function parseDateOrDefault($v, string $defaultYmd): string {
+    $s = trim((string)$v);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $s)) return $s;
+    return $defaultYmd;
+  }
+
   private function ensureSchema(PDO $pdo): void {
     $db = $this->currentDb($pdo);
 
+    /**
+     * Garante que a tabela plans exista (para validar e calcular preços).
+     * Se já existir (com mais colunas), não altera nada aqui.
+     */
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS plans (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        description TEXT NULL,
+        price_monthly DECIMAL(10,2) DEFAULT 0,
+        price_yearly  DECIMAL(10,2) DEFAULT 0,
+        status ENUM('active','inactive') DEFAULT 'active',
+        sort_order INT DEFAULT 0,
+
+        -- Familiar
+        is_family TINYINT(1) DEFAULT 0,
+        min_users INT DEFAULT 1,
+        max_users INT DEFAULT 0,
+        add_user_monthly DECIMAL(10,2) DEFAULT 0,
+        add_user_yearly  DECIMAL(10,2) DEFAULT 0,
+
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+
+    /**
+     * Subscriptions + ajustes legados
+     */
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS subscriptions (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -37,6 +94,10 @@ class SubscriptionsController
         started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         renew_at DATE DEFAULT NULL,
         amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+
+        -- quantidade para plano familiar
+        qty_users INT NOT NULL DEFAULT 1,
+
         asaas_customer_id VARCHAR(80) DEFAULT NULL,
         asaas_subscription_id VARCHAR(80) DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -47,6 +108,7 @@ class SubscriptionsController
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
+    // Migração suave: value -> amount
     $hasValue  = $this->colExists($pdo, $db, 'subscriptions', 'value');
     $hasAmount = $this->colExists($pdo, $db, 'subscriptions', 'amount');
     if ($hasValue && !$hasAmount) {
@@ -56,10 +118,12 @@ class SubscriptionsController
       try { $pdo->exec("ALTER TABLE subscriptions DROP COLUMN value"); } catch (\Throwable $e) {}
     }
 
+    // Corrige enum antigo de status
     $colType = $pdo->query("
       SELECT COLUMN_TYPE FROM information_schema.COLUMNS
       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='subscriptions' AND COLUMN_NAME='status'
     ")->fetchColumn();
+
     if (is_string($colType) && stripos($colType, "enum('active','suspended','canceled')") !== false) {
       $pdo->exec("ALTER TABLE subscriptions CHANGE COLUMN status status VARCHAR(20) NOT NULL");
       $pdo->exec("UPDATE subscriptions SET status=LOWER(TRIM(status))");
@@ -68,15 +132,30 @@ class SubscriptionsController
       $pdo->exec("UPDATE subscriptions SET status='cancelada' WHERE status IN ('canceled','cancelada')");
       $pdo->exec("ALTER TABLE subscriptions CHANGE COLUMN status status ENUM('ativa','suspensa','cancelada') NOT NULL DEFAULT 'suspensa'");
     }
+
+    // Garante cycle enum correto
     $pdo->exec("ALTER TABLE subscriptions CHANGE COLUMN cycle cycle ENUM('monthly','yearly') NOT NULL DEFAULT 'monthly'");
 
+    // Garante colunas Asaas
     if (!$this->colExists($pdo, $db, 'subscriptions', 'asaas_customer_id')) {
-      $pdo->exec("ALTER TABLE subscriptions ADD COLUMN asaas_customer_id VARCHAR(80) NULL AFTER amount");
+      $pdo->exec("ALTER TABLE subscriptions ADD COLUMN asaas_customer_id VARCHAR(80) NULL AFTER qty_users");
     }
     if (!$this->colExists($pdo, $db, 'subscriptions', 'asaas_subscription_id')) {
       $pdo->exec("ALTER TABLE subscriptions ADD COLUMN asaas_subscription_id VARCHAR(80) NULL AFTER asaas_customer_id");
     }
 
+    // Garante qty_users (caso tabela já exista antiga)
+    $this->addColumnIfMissing(
+      $pdo,
+      $db,
+      'subscriptions',
+      'qty_users',
+      "ALTER TABLE subscriptions ADD COLUMN qty_users INT NOT NULL DEFAULT 1 AFTER amount"
+    );
+
+    /**
+     * invoices e webhooks_log
+     */
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS invoices (
         id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -105,6 +184,75 @@ class SubscriptionsController
     ");
   }
 
+  /**
+   * Calcula o valor final do plano:
+   * - Individual: base do ciclo
+   * - Familiar: base (para min_users) + (qty_users - min_users) * adicional (do ciclo)
+   */
+  private function calcPlanAmount(PDO $pdo, string $planId, string $cycleUi, int &$qtyUsersOut): float {
+    $cols = $this->planCols($pdo);
+
+    // Colunas tolerantes (caso existam nomes legados)
+    $colPm = in_array('price_monthly', $cols) ? 'price_monthly' : (in_array('monthly_price', $cols) ? 'monthly_price' : null);
+    $colPy = in_array('price_yearly',  $cols) ? 'price_yearly'  : (in_array('yearly_price',  $cols) ? 'yearly_price'  : null);
+
+    $colIsFam = in_array('is_family', $cols) ? 'is_family' : null;
+    $colMinU  = in_array('min_users', $cols) ? 'min_users' : null;
+    $colMaxU  = in_array('max_users', $cols) ? 'max_users' : null;
+    $colAddM  = in_array('add_user_monthly', $cols) ? 'add_user_monthly' : null;
+    $colAddY  = in_array('add_user_yearly',  $cols) ? 'add_user_yearly'  : null;
+
+    // Monta SELECT
+    $select = "id, status";
+    $select .= $colPm ? ", $colPm AS pm" : ", NULL AS pm";
+    $select .= $colPy ? ", $colPy AS py" : ", NULL AS py";
+
+    $select .= $colIsFam ? ", $colIsFam AS is_family" : ", 0 AS is_family";
+    $select .= $colMinU  ? ", $colMinU  AS min_users" : ", 1 AS min_users";
+    $select .= $colMaxU  ? ", $colMaxU  AS max_users" : ", 0 AS max_users";
+    $select .= $colAddM  ? ", $colAddM  AS add_m"     : ", 0 AS add_m";
+    $select .= $colAddY  ? ", $colAddY  AS add_y"     : ", 0 AS add_y";
+
+    $st = $pdo->prepare("SELECT $select FROM plans WHERE id=? LIMIT 1");
+    $st->execute([$planId]);
+    $p = $st->fetch(PDO::FETCH_ASSOC);
+
+    if (!$p) \Json::fail('invalid_plan_id', 422);
+    if (($p['status'] ?? 'inactive') !== 'active') \Json::fail('invalid_plan_id', 422);
+
+    $pm = isset($p['pm']) ? (float)$p['pm'] : 0.0;
+    $py = isset($p['py']) ? (float)$p['py'] : null;
+
+    // fallback anual: 12x com desconto 15%
+    if ($py === null) $py = $pm * 12 * 0.85;
+
+    $isFam = ((int)($p['is_family'] ?? 0) === 1);
+    $minU  = max(1, (int)($p['min_users'] ?? 1));
+    $maxU  = max(0, (int)($p['max_users'] ?? 0));
+    $addM  = max(0.0, (float)($p['add_m'] ?? 0));
+    $addY  = max(0.0, (float)($p['add_y'] ?? 0));
+
+    if (!$isFam) {
+      $qtyUsersOut = 1;
+      return $cycleUi === 'yearly' ? (float)$py : (float)$pm;
+    }
+
+    // Familiar: mínimo recomendado >= 2
+    if ($minU < 2) $minU = 2;
+    if ($maxU > 0 && $maxU < $minU) $maxU = $minU;
+
+    // clamp qty
+    $qtyUsersOut = $this->clampInt($qtyUsersOut, $minU, $maxU > 0 ? $maxU : PHP_INT_MAX);
+
+    $base = $cycleUi === 'yearly' ? (float)$py : (float)$pm;
+    $add  = $cycleUi === 'yearly' ? $addY : $addM;
+
+    $extra = max(0, $qtyUsersOut - $minU);
+    $amount = $base + ($extra * $add);
+
+    return (float)$amount;
+  }
+
   // POST /?r=api/subscriptions/create
   public function create(): void {
     \Auth::requireRole(['member','admin']);
@@ -117,62 +265,48 @@ class SubscriptionsController
       $userId = (int)($u['id'] ?? 0);
       if ($userId <= 0) \Json::fail('unauthorized', 401);
 
-      $planId      = trim($_POST['plan_id'] ?? '');
-      $cycleUi     = in_array(($_POST['cycle'] ?? 'monthly'), ['monthly','yearly'], true) ? $_POST['cycle'] : 'monthly';
-      $billingType = strtoupper($_POST['billingType'] ?? 'BOLETO'); // PIX não é permitido em subscriptions
-      $nextDueDate = $_POST['nextDueDate'] ?? date('Y-m-d', strtotime('+1 day'));
+      $planId  = trim($_POST['plan_id'] ?? '');
       if ($planId === '') \Json::fail('invalid_payload', 422);
 
-      // valida plano
-      $chk = $pdo->prepare("SELECT 1 FROM plans WHERE id=? AND status='active' LIMIT 1");
-      $chk->execute([$planId]);
-      if (!$chk->fetch()) \Json::fail('invalid_plan_id', 422);
+      $cycleUi = in_array(($_POST['cycle'] ?? 'monthly'), ['monthly','yearly'], true) ? $_POST['cycle'] : 'monthly';
+
+      // >>> FORÇA SOMENTE BOLETO (checkout de cartão removido)
+      $billingType = 'BOLETO';
+
+      // quantidade (para familiar)
+      $qtyUsers = (int)($_POST['qty_users'] ?? 1);
+      if ($qtyUsers < 1) $qtyUsers = 1;
+
+      // nextDueDate (mantém seu padrão: amanhã)
+      $nextDueDate = $this->parseDateOrDefault($_POST['nextDueDate'] ?? null, date('Y-m-d', strtotime('+1 day')));
 
       // perfil (fallbacks)
       $ps = $pdo->prepare("SELECT name, email, document, phone FROM users WHERE id=? LIMIT 1");
       $ps->execute([$userId]);
       $prof = $ps->fetch(PDO::FETCH_ASSOC) ?: [];
 
-      $cpfCnpjPost = preg_replace('/\D+/', '', $_POST['cpfCnpj']     ?? '');
-      $cpfCnpjDb   = preg_replace('/\D+/', '', $prof['document']     ?? '');
+      $cpfCnpjPost = preg_replace('/\D+/', '', $_POST['cpfCnpj'] ?? '');
+      $cpfCnpjDb   = preg_replace('/\D+/', '', $prof['document'] ?? '');
       $cpfCnpj     = $cpfCnpjPost ?: $cpfCnpjDb;
-      if (!in_array(strlen($cpfCnpj), [11,14], true)) \Json::fail('É necessário informar um CPF/CNPJ válido (perfil ou formulário).', 422);
+      if (!in_array(strlen($cpfCnpj), [11,14], true)) {
+        \Json::fail('É necessário informar um CPF/CNPJ válido (perfil ou formulário).', 422);
+      }
 
       $mobilePost  = preg_replace('/\D+/', '', $_POST['mobilePhone'] ?? '');
-      $mobileDb    = preg_replace('/\D+/', '', $prof['phone']        ?? '');
+      $mobileDb    = preg_replace('/\D+/', '', $prof['phone'] ?? '');
       $mobile      = $mobilePost ?: $mobileDb;
       $mobileValid = (strlen($mobile) >= 10 && strlen($mobile) <= 11);
 
-      if (!in_array($billingType, ['BOLETO','CREDIT_CARD'], true)) $billingType = 'BOLETO';
-
-      // usa preço do plano, se necessário
-      $amount = isset($_POST['amount']) ? (float)$_POST['amount'] : null;
-      $cols = $pdo->query("
-        SELECT LOWER(COLUMN_NAME)
-        FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'plans'
-      ")->fetchAll(PDO::FETCH_COLUMN);
-      if ($amount === null) {
-        $colM = in_array('price_monthly', $cols) ? 'price_monthly' : (in_array('monthly_price', $cols) ? 'monthly_price' : null);
-        $colY = in_array('price_yearly',  $cols) ? 'price_yearly'  : (in_array('yearly_price',  $cols) ? 'yearly_price'  : null);
-        if ($colM || $colY) {
-          $st = $pdo->prepare("SELECT ".($colM ?: 'NULL')." AS pm, ".($colY ?: 'NULL')." AS py FROM plans WHERE id=? LIMIT 1");
-          $st->execute([$planId]);
-          if ($row = $st->fetch(PDO::FETCH_ASSOC)) {
-            $pm = isset($row['pm']) ? (float)$row['pm'] : null;
-            $py = isset($row['py']) ? (float)$row['py'] : null;
-            if ($py === null && $pm !== null) $py = $pm * 12 * 0.85;
-            $amount = $cycleUi === 'yearly' ? ($py ?? 0.0) : ($pm ?? 0.0);
-          }
-        }
-      }
-      if ($amount === null) $amount = 0.0;
-
-      // ==== Asaas
+      // Email e nome
       $email = trim((string)($u['email'] ?? $prof['email'] ?? ''));
       if (!filter_var($email, FILTER_VALIDATE_EMAIL)) \Json::fail('E-mail do usuário inválido.', 422);
-      $name = trim((string)($_POST['name'] ?? $u['name'] ?? $prof['name'] ?? 'Cliente'));
 
+      $name  = trim((string)($_POST['name'] ?? $u['name'] ?? $prof['name'] ?? 'Cliente'));
+
+      // >>> Calcula amount no servidor (inclui familiar + qty_users)
+      $amount = $this->calcPlanAmount($pdo, $planId, $cycleUi, $qtyUsers);
+
+      // ==== Asaas
       $customerPayload = ['name'=>$name,'email'=>$email,'cpfCnpj'=>$cpfCnpj];
       if ($mobileValid) $customerPayload['mobilePhone'] = $mobile;
 
@@ -189,42 +323,39 @@ class SubscriptionsController
         }
       }
 
-      $creditCardToken = null;
-      if ($billingType === 'CREDIT_CARD' && !empty($_POST['cardNumber'])) {
-        $tok = $asaas->tokenizeCard([
-          'creditCardNumber' => preg_replace('/\D+/', '', $_POST['cardNumber']),
-          'creditCardBrand'  => $_POST['brand'] ?? null,
-          'holderName'       => $_POST['holderName'] ?? null,
-          'expirationMonth'  => $_POST['expMonth'] ?? null,
-          'expirationYear'   => $_POST['expYear'] ?? null,
-          'securityCode'     => $_POST['cvv'] ?? null,
-          'customer'         => $cust['id'],
-        ]);
-        $creditCardToken = $tok['creditCardToken'] ?? null;
-      }
-
+      // Asaas subscription cycle
       $cycleAsaas = $cycleUi === 'yearly' ? 'YEARLY' : 'MONTHLY';
+
       $payload = [
         'customer'    => $cust['id'],
-        'billingType' => $billingType,
+        'billingType' => $billingType, // BOLETO
         'value'       => $amount,
         'cycle'       => $cycleAsaas,
         'nextDueDate' => $nextDueDate,
       ];
-      if ($creditCardToken) $payload['creditCardToken'] = $creditCardToken;
 
       $sub = $asaas->createSubscription($payload);
 
-      // >>>> IMPORTANTE: assinatura nasce como 'suspensa' (aguardando pagamento)
+      // >>> assinatura local nasce como 'suspensa' (aguardando pagamento)
       $statusStart = 'suspensa';
 
       $ins = $pdo->prepare("
         INSERT INTO subscriptions
-          (user_id, plan_id, cycle, status, started_at, renew_at, amount, asaas_customer_id, asaas_subscription_id, created_at)
+          (user_id, plan_id, cycle, status, started_at, renew_at, amount, qty_users, asaas_customer_id, asaas_subscription_id, created_at)
         VALUES
-          (?,       ?,      ?,     ?,      NOW(),     ?,        ?,      ?,                 ?,                    NOW())
+          (?,       ?,      ?,     ?,      NOW(),     ?,        ?,      ?,        ?,                 ?,                    NOW())
       ");
-      $ins->execute([$userId, $planId, $cycleUi, $statusStart, $nextDueDate, $amount, $cust['id'], $sub['id']]);
+      $ins->execute([
+        $userId,
+        $planId,
+        $cycleUi,
+        $statusStart,
+        $nextDueDate,
+        $amount,
+        $qtyUsers,
+        $cust['id'],
+        $sub['id']
+      ]);
 
       // primeira fatura pendente
       $pays = $asaas->getPayments(['subscription' => $sub['id'], 'limit' => 1]);
@@ -251,10 +382,12 @@ class SubscriptionsController
       \Json::ok([
         'ok' => true,
         'subscription' => ['id' => $sub['id']],
+        'qty_users' => $qtyUsers,
+        'amount' => $amount,
         'payment' => [
-          'id'         => $payment['id']          ?? null,
-          'invoiceUrl' => $payment['invoiceUrl']  ?? null,
-          'bankSlipUrl'=> $payment['bankSlipUrl'] ?? null,
+          'id'          => $payment['id']          ?? null,
+          'invoiceUrl'  => $payment['invoiceUrl']  ?? null,
+          'bankSlipUrl' => $payment['bankSlipUrl'] ?? null,
           'pix' => [
             'qrCode'  => $payment['pixQrCode']     ?? null,
             'payload' => $payment['pixQrCodeText'] ?? null,

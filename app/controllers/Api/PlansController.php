@@ -60,12 +60,25 @@ class PlansController
       $cDesc  = in_array('description', $cols) ? 'description' : null;
       $cFeat  = in_array('features', $cols) ? 'features' : null;
 
+      // familiar (se existir)
+      $cIsFam = in_array('is_family', $cols) ? 'is_family' : null;
+      $cMinU  = in_array('min_users', $cols) ? 'min_users' : null;
+      $cMaxU  = in_array('max_users', $cols) ? 'max_users' : null;
+      $cAddM  = in_array('add_user_monthly', $cols) ? 'add_user_monthly' : null;
+      $cAddY  = in_array('add_user_yearly',  $cols) ? 'add_user_yearly'  : null;
+
       // SELECT
       $select = "$cId AS id, $cName AS name";
       if ($cPM)   $select .= ", $cPM AS price_monthly";
       if ($cPY)   $select .= ", $cPY AS price_yearly";
       if ($cDesc) $select .= ", $cDesc AS description";
       if ($cFeat) $select .= ", $cFeat AS _features_raw";
+
+      if ($cIsFam) $select .= ", $cIsFam AS is_family";
+      if ($cMinU)  $select .= ", $cMinU  AS min_users";
+      if ($cMaxU)  $select .= ", $cMaxU  AS max_users";
+      if ($cAddM)  $select .= ", $cAddM  AS add_user_monthly";
+      if ($cAddY)  $select .= ", $cAddY  AS add_user_yearly";
 
       $sql = "SELECT $select FROM plans";
       $where = [];
@@ -85,6 +98,29 @@ class PlansController
       foreach ($rows as &$r) {
         $r['price_monthly'] = isset($r['price_monthly']) ? (float)$r['price_monthly'] : 0.0;
         $r['price_yearly']  = isset($r['price_yearly'])  ? (float)$r['price_yearly']  : 0.0;
+
+        // familiar defaults
+        $r['is_family'] = isset($r['is_family']) ? (int)$r['is_family'] : 0;
+        $r['min_users'] = isset($r['min_users']) ? (int)$r['min_users'] : 1;
+        $r['max_users'] = isset($r['max_users']) ? (int)$r['max_users'] : 0;
+        $r['add_user_monthly'] = isset($r['add_user_monthly']) ? (float)$r['add_user_monthly'] : 0.0;
+        $r['add_user_yearly']  = isset($r['add_user_yearly'])  ? (float)$r['add_user_yearly']  : 0.0;
+
+        if ($r['min_users'] < 1) $r['min_users'] = 1;
+        if ($r['max_users'] < 0) $r['max_users'] = 0;
+        if ($r['add_user_monthly'] < 0) $r['add_user_monthly'] = 0;
+        if ($r['add_user_yearly'] < 0) $r['add_user_yearly'] = 0;
+
+        // se não for familiar, normaliza para “individual”
+        if ((int)$r['is_family'] !== 1) {
+          $r['min_users'] = 1;
+          $r['max_users'] = 0;
+          $r['add_user_monthly'] = 0.0;
+          $r['add_user_yearly']  = 0.0;
+        } else {
+          if ($r['min_users'] < 2) $r['min_users'] = 2;
+          if ($r['max_users'] > 0 && $r['max_users'] < $r['min_users']) $r['max_users'] = $r['min_users'];
+        }
 
         $desc = isset($r['description']) ? (string)$r['description'] : '';
 
@@ -107,7 +143,6 @@ class PlansController
         $features = array_values(array_unique(array_filter($features, fn($x)=>$x!=='')));
         $r['features'] = $features;
 
-        // mantém description; se vier vazia mas temos features, popula com join por linha
         if ($desc === '' && !empty($features)) {
           $r['description'] = implode("\n", $features);
         } else {

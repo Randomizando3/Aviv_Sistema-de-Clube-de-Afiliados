@@ -32,9 +32,42 @@ function maskCpf($doc){
   return $doc ?: '—';
 }
 
+/**
+ * 1 -> AA, 2 -> AB, 3 -> AC ... (A1 base-26)
+ * Aqui vamos RESERVAR o AA para o titular,
+ * então dependente #1 usa n=2 => AB.
+ */
+function alpha2FromNumber(int $n): string {
+  if ($n < 1) $n = 1;
+  $n--; // 0-based
+  $a = intdiv($n, 26);
+  $b = $n % 26;
+  $a = max(0, min(25, $a));
+  $b = max(0, min(25, $b));
+  return chr(65 + $a) . chr(65 + $b);
+}
+
+$dependentes = [];
+$subId = null;
+
 try{
   $pdo = DB::pdo();
+
+  $dbName = (string)$pdo->query("SELECT DATABASE()")->fetchColumn();
+
+  $tableExists = function(string $table) use ($pdo, $dbName): bool {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME=?");
+    $q->execute([$dbName, $table]);
+    return (int)$q->fetchColumn() > 0;
+  };
+  $colExists = function(string $table, string $col) use ($pdo, $dbName): bool {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?");
+    $q->execute([$dbName, $table, $col]);
+    return (int)$q->fetchColumn() > 0;
+  };
+
   if ($memberId){
+    // user completo
     $u = $pdo->prepare("SELECT * FROM users WHERE id=? LIMIT 1");
     $u->execute([$memberId]);
     if ($row = $u->fetch(PDO::FETCH_ASSOC)){
@@ -50,11 +83,14 @@ try{
       $zip       = $row['zip']        ?? $zip;
     }
 
-    $st = $pdo->prepare("SELECT plan_id,status FROM subscriptions WHERE user_id=? ORDER BY id DESC LIMIT 1");
+    // assinatura atual
+    $st = $pdo->prepare("SELECT id, plan_id, status FROM subscriptions WHERE user_id=? ORDER BY id DESC LIMIT 1");
     $st->execute([$memberId]);
     if ($sub = $st->fetch(PDO::FETCH_ASSOC)){
+      $subId = $sub['id'] ?? null;
       $statusPlano = $sub['status'] ?? '—';
       $planId = $sub['plan_id'] ?? null;
+
       if ($planId){
         $ps = $pdo->prepare("SELECT name FROM plans WHERE id=? LIMIT 1");
         $ps->execute([$planId]);
@@ -63,18 +99,82 @@ try{
         $planoAtual = $pr['name'] ?? ($map[strtolower((string)$planId)] ?? strtoupper((string)$planId));
       }
     }
+
+    // DEPENDENTES (subscription_people)
+    if ($subId && $tableExists('subscription_people') && $colExists('subscription_people','subscription_id')) {
+
+      // Descobre colunas disponíveis (para evitar erro)
+      $cols = $pdo->query("
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME='subscription_people'
+      ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+      $cols = array_map('strtolower', $cols);
+
+      $hasRole   = in_array('role', $cols, true);
+      $hasName   = in_array('full_name', $cols, true) || in_array('name', $cols, true);
+      $hasDocT   = in_array('doc_type', $cols, true);
+      $hasDocV   = in_array('doc_value', $cols, true) || in_array('document', $cols, true);
+      $hasBirth  = in_array('birth_date', $cols, true);
+      $hasMail   = in_array('email', $cols, true);
+      $hasPhone  = in_array('phone', $cols, true);
+
+      $nameCol = in_array('full_name', $cols, true) ? 'full_name' : (in_array('name', $cols, true) ? 'name' : null);
+      $docVCol = in_array('doc_value', $cols, true) ? 'doc_value' : (in_array('document', $cols, true) ? 'document' : null);
+
+      $select = "id";
+      if ($nameCol) $select .= ", {$nameCol} AS full_name";
+      else $select .= ", NULL AS full_name";
+
+      $select .= $hasDocT ? ", doc_type" : ", NULL AS doc_type";
+      $select .= $docVCol ? ", {$docVCol} AS doc_value" : ", NULL AS doc_value";
+      $select .= $hasBirth ? ", birth_date" : ", NULL AS birth_date";
+      $select .= $hasMail ? ", email" : ", NULL AS email";
+      $select .= $hasPhone ? ", phone" : ", NULL AS phone";
+      if ($hasRole) $select .= ", role";
+
+      $whereRole = $hasRole ? " AND LOWER(COALESCE(role,'dependent'))='dependent' " : "";
+
+      $q = $pdo->prepare("
+        SELECT {$select}
+        FROM subscription_people
+        WHERE subscription_id = ?
+        {$whereRole}
+        ORDER BY id ASC
+      ");
+      $q->execute([$subId]);
+
+      $i = 0;
+      while ($row = $q->fetch(PDO::FETCH_ASSOC)) {
+        $i++;
+
+        // RESERVA AA para titular => dependente #1 usa AB (n=2)
+        $suffix = alpha2FromNumber($i + 1); // i=1 => n=2 => AB
+
+        $depCode = $memberCode . '-' . $suffix;
+
+        $dependentes[] = [
+          'id' => (int)($row['id'] ?? 0),
+          'code' => $depCode,
+          'name' => $row['full_name'] ?: ('Dependente ' . $i),
+          'document' => $row['doc_value'] ?? null,
+          'birth_date' => $row['birth_date'] ?? null,
+          'email' => $row['email'] ?? null,
+          'phone' => $row['phone'] ?? null,
+        ];
+      }
+    }
   }
 }catch(Throwable $e){}
 
 $publicCardUrl = '/?r=site/card&code=' . urlencode($memberCode);
-
-// fallback opcional para os sky banners
 $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 ?>
+
 <section class="container member dash-member" style="margin-top:18px; overflow:visible">
-  <!-- STRIP com rails: os asides ficam “fora” via margem negativa -->
   <div class="rail-strip">
-    <!-- Left sky (fora do grid via margem negativa) -->
+
+    <!-- Left sky -->
     <aside class="rail-sky rail-left" aria-label="Publicidade" aria-hidden="true">
       <div class="adbox-sky" id="ad-sky-left">
         <div class="ad-skeleton" aria-hidden="true"></div>
@@ -86,9 +186,10 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
       </div>
     </aside>
 
-    <!-- CONTEÚDO CENTRAL (DASH) -->
+    <!-- CONTEÚDO CENTRAL -->
     <div class="rail-main">
-      <!-- Carteirinha -->
+
+      <!-- Carteirinha principal -->
       <section class="glass-card">
         <h2 class="sect-title">Carteirinha digital</h2>
 
@@ -153,35 +254,109 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
               <div class="uc-field">
                 <div class="uc-label">Código do associado</div>
                 <div class="uc-value">
-                  <span id="member-code"><?= htmlspecialchars($memberCode) ?></span>
-                  <button class="btn btn-xs btn--ghost" type="button" id="btn-copy">Copiar</button>
+                  <span class="js-member-code"><?= htmlspecialchars($memberCode) ?></span>
+                  <button class="btn btn-xs btn--ghost js-copy-code" type="button">Copiar</button>
                 </div>
               </div>
             </div>
 
             <div class="uc-right">
               <div class="uc-qr" aria-label="Código QR">
-                <img id="qr-img" alt="QR" width="148" height="148" decoding="async" loading="lazy">
+                <img class="js-qr-img"
+                     data-public-url="<?= htmlspecialchars($publicCardUrl) ?>"
+                     alt="QR" width="148" height="148" decoding="async" loading="lazy">
               </div>
               <div class="uc-qr-caption muted">Apresente este QR no parceiro</div>
             </div>
           </div>
 
           <div class="uc-actions">
-            <button class="btn btn-sm" type="button" id="btn-fullqr">Mostrar QR em tela cheia</button>
-            <a class="btn btn-sm btn--ghost" id="btn-pdf" href="<?= htmlspecialchars($publicCardUrl) ?>&print=1" target="_blank" rel="noopener">Baixar PDF</a>
+            <button class="btn btn-sm js-fullqr" type="button"
+                    data-title="Carteirinha • QR"
+                    data-public-url="<?= htmlspecialchars($publicCardUrl) ?>">
+              Mostrar QR em tela cheia
+            </button>
+            <a class="btn btn-sm btn--ghost" href="<?= htmlspecialchars($publicCardUrl) ?>&print=1" target="_blank" rel="noopener">Baixar PDF</a>
           </div>
 
           <div id="member-alert" class="alert" role="status" aria-live="polite" style="display:none"></div>
         </div>
       </section>
 
-      <!-- Faturas (resumo: próxima + última paga) -->
-      <section class="glass-card">
+      <!-- Dependentes -->
+      <section class="glass-card" style="margin-top:12px">
+        <h2 class="sect-title">Dependentes</h2>
+        <p class="muted" style="margin:-2px 0 10px">Carteirinhas vinculadas ao seu plano familiar.</p>
+
+        <?php if (empty($dependentes)): ?>
+          <div class="muted">Nenhum dependente encontrado para exibir no dashboard.</div>
+        <?php else: ?>
+          <div class="dep-grid">
+            <?php foreach ($dependentes as $d): ?>
+              <?php $depPublicCardUrl = '/?r=site/card&code=' . urlencode((string)$d['code']); ?>
+              <article class="dep-card" aria-label="Carteirinha dependente">
+                <div class="dep-top">
+                  <div class="dep-name">
+                    <div class="dep-label">Dependente</div>
+                    <div class="dep-value"><?= htmlspecialchars($d['name']) ?></div>
+                  </div>
+                  <div class="dep-code"><?= htmlspecialchars($d['code']) ?></div>
+                </div>
+
+                <div class="dep-body">
+                  <div class="dep-fields">
+                    <div class="dep-row">
+                      <span class="dep-k">CPF</span>
+                      <span class="dep-v"><?= htmlspecialchars(maskCpf($d['document'])) ?></span>
+                    </div>
+                    <div class="dep-row">
+                      <span class="dep-k">Nascimento</span>
+                      <span class="dep-v"><?= htmlspecialchars(fmtDateBR($d['birth_date'])) ?></span>
+                    </div>
+                    <div class="dep-row">
+                      <span class="dep-k">E-mail</span>
+                      <span class="dep-v dep-ellipsis"><?= htmlspecialchars($d['email'] ?: '—') ?></span>
+                    </div>
+                    <div class="dep-row">
+                      <span class="dep-k">Telefone</span>
+                      <span class="dep-v"><?= htmlspecialchars($d['phone'] ?: '—') ?></span>
+                    </div>
+                  </div>
+
+                  <div class="dep-qrbox">
+                    <img class="js-qr-img"
+                         data-public-url="<?= htmlspecialchars($depPublicCardUrl) ?>"
+                         alt="QR dependente" width="112" height="112" loading="lazy" decoding="async">
+                    <div class="muted" style="font-size:.78rem; text-align:center">QR do dependente</div>
+                  </div>
+                </div>
+
+                <div class="dep-actions">
+                  <button class="btn btn-xs btn--ghost js-fullqr" type="button"
+                          data-title="Dependente • QR"
+                          data-public-url="<?= htmlspecialchars($depPublicCardUrl) ?>">
+                    QR em tela cheia
+                  </button>
+
+                  <a class="btn btn-xs btn--ghost" href="<?= htmlspecialchars($depPublicCardUrl) ?>&print=1" target="_blank" rel="noopener">
+                    Baixar PDF
+                  </a>
+
+                  <button class="btn btn-xs btn--ghost js-copy-code" type="button">
+                    <span class="js-member-code"><?= htmlspecialchars($d['code']) ?></span> • Copiar
+                  </button>
+                </div>
+              </article>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </section>
+
+      <!-- Faturas -->
+      <section class="glass-card" style="margin-top:12px">
         <h2 class="sect-title">Faturas</h2>
 
         <div class="inv-quick">
-          <!-- Próxima -->
           <div class="inv-tile" id="tile-next">
             <div class="tile-head">
               <div class="tile-title">Próxima cobrança</div>
@@ -194,7 +369,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
             </div>
           </div>
 
-          <!-- Último pagamento -->
           <div class="inv-tile" id="tile-last">
             <div class="tile-head">
               <div class="tile-title">Último pagamento</div>
@@ -216,7 +390,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
       </section>
     </div>
 
-    <!-- Right sky (fora do grid via margem negativa) -->
+    <!-- Right sky -->
     <aside class="rail-sky rail-right" aria-label="Publicidade" aria-hidden="true">
       <div class="adbox-sky" id="ad-sky-right">
         <div class="ad-skeleton" aria-hidden="true"></div>
@@ -227,6 +401,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
         <?php endif; ?>
       </div>
     </aside>
+
   </div>
 </section>
 
@@ -246,7 +421,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 <script>
 /* ====== SKY ADS (esq/dir) ====== */
 (function(){
-  // Não busca nem renderiza anúncios em telas até 1020px
   if (window.matchMedia('(max-width: 1020px)').matches) return;
 
   function loadSkys(){
@@ -310,30 +484,66 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   else document.addEventListener('DOMContentLoaded', loadSkys);
 })();
 
-/* ====== LÓGICA DO DASH (QR/Faturas) ====== */
+/* ====== QR (principal + dependentes) + Modal + Copiar ====== */
 (function(){
-  const publicUrl = location.origin + <?= json_encode($publicCardUrl) ?>;
-  const qrBase = 'https://api.qrserver.com/v1/create-qr-code/?margin=0&data=' + encodeURIComponent(publicUrl);
-  const small = document.getElementById('qr-img');
-  const big   = document.getElementById('qr-img-big');
-  if (small) small.src = qrBase + '&size=148x148';
-  if (big)   big.src   = qrBase + '&size=320x320';
+  function makeQrUrl(publicUrl, size){
+    const absolute = location.origin + publicUrl;
+    return 'https://api.qrserver.com/v1/create-qr-code/?margin=0&data=' + encodeURIComponent(absolute) + '&size=' + size + 'x' + size;
+  }
 
-  document.getElementById('btn-copy')?.addEventListener('click', async ()=>{
-    const code = document.getElementById('member-code')?.textContent || '';
-    try{
-      await navigator.clipboard.writeText(code);
-      toast('Código copiado!');
-    }catch(_){
-      toast('Não foi possível copiar.');
-    }
+  document.querySelectorAll('.js-qr-img').forEach(img => {
+    const publicUrl = img.getAttribute('data-public-url') || '';
+    if (!publicUrl) return;
+
+    const w = Number(img.getAttribute('width') || 148);
+    img.src = makeQrUrl(publicUrl, w);
   });
 
-  const m = document.getElementById('qr-modal');
-  document.getElementById('btn-fullqr')?.addEventListener('click', ()=> m?.classList.add('is-open'));
-  document.getElementById('qr-close')?.addEventListener('click', ()=> m?.classList.remove('is-open'));
-  m?.addEventListener('click', (e)=>{ if(e.target === m) m.classList.remove('is-open'); });
+  document.querySelectorAll('.js-copy-code').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const codeEl = btn.querySelector('.js-member-code') || btn.closest('*')?.querySelector('.js-member-code');
+      const code = codeEl ? (codeEl.textContent || '').trim() : '';
+      if (!code) return toast('Código vazio.');
 
+      try{
+        await navigator.clipboard.writeText(code);
+        toast('Código copiado!');
+      }catch(_){
+        toast('Não foi possível copiar.');
+      }
+    });
+  });
+
+  const modal = document.getElementById('qr-modal');
+  const modalTitle = document.getElementById('qr-modal-title');
+  const modalImg = document.getElementById('qr-img-big');
+
+  document.querySelectorAll('.js-fullqr').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const title = btn.getAttribute('data-title') || 'Carteirinha • QR';
+      const publicUrl = btn.getAttribute('data-public-url') || '';
+      if (!publicUrl) return;
+
+      modalTitle.textContent = title;
+      modalImg.src = makeQrUrl(publicUrl, 320);
+      modal?.classList.add('is-open');
+    });
+  });
+
+  document.getElementById('qr-close')?.addEventListener('click', ()=> modal?.classList.remove('is-open'));
+  modal?.addEventListener('click', (e)=>{ if(e.target === modal) modal.classList.remove('is-open'); });
+
+  function toast(msg){
+    const box = document.getElementById('member-alert');
+    if (!box) return;
+    box.textContent = msg;
+    box.style.display = 'block';
+    setTimeout(()=> box.style.display='none', 1600);
+  }
+})();
+
+/* ====== LÓGICA DAS FATURAS (mantida) ====== */
+(function(){
   const fmtBRL = v => 'R$ ' + (Number(v||0)).toFixed(2).replace('.', ',');
   const fmtDateBR = d => {
     if(!d) return '—';
@@ -341,7 +551,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
     const [y,m,dd] = s.split('-');
     return y ? `${dd}/${m}/${y}` : '—';
   };
-  const norm = s => String(s||'').toLowerCase();
+  const norm = s => String(s||'').toLowerCase().trim();
 
   const nextAmount = document.getElementById('next-amount');
   const nextDate   = document.getElementById('next-date');
@@ -359,6 +569,27 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 
   let NEXT_ID = null;
 
+  function invAmount(i){
+    return (i && (i.amount ?? i.value)) ?? 0;
+  }
+
+  function isPendingStatus(st){
+    st = norm(st);
+    return ['pending','pendente'].includes(st);
+  }
+  function isOverdueStatus(st){
+    st = norm(st);
+    return ['overdue','atraso','em atraso'].includes(st);
+  }
+  function isPaidStatus(st){
+    st = norm(st);
+    return ['paid','pago'].includes(st);
+  }
+  function isUpcomingStatus(st){
+    st = norm(st);
+    return ['scheduled','agendada','agendado','upcoming'].includes(st);
+  }
+
   (async () => {
     try{
       const r = await fetch('/?r=api/member/invoices');
@@ -367,22 +598,26 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 
       const inv = Array.isArray(j.invoices) ? j.invoices : [];
 
-      const pend = inv.filter(i => ['pendente','atraso'].includes(norm(i.status)) && i.due_date)
-                      .sort((a,b)=> a.due_date.localeCompare(b.due_date));
-      const upcoming = inv.filter(i => norm(i.status)==='agendada')
-                          .sort((a,b)=> (a.due_date||'').localeCompare(b.due_date||''));
+      const pend = inv
+        .filter(i => (isPendingStatus(i.status) || isOverdueStatus(i.status)) && i.due_date)
+        .sort((a,b)=> String(a.due_date||'').localeCompare(String(b.due_date||'')));
+
+      const upcoming = inv
+        .filter(i => isUpcomingStatus(i.status))
+        .sort((a,b)=> String(a.due_date||'').localeCompare(String(b.due_date||'')));
+
       const next = pend[0] || upcoming[0] || null;
 
       if (next){
-        nextAmount.textContent = fmtBRL(next.amount);
+        nextAmount.textContent = fmtBRL(invAmount(next));
         nextDate.textContent   = next.due_date ? ('Vencimento: ' + fmtDateBR(next.due_date)) : '—';
 
         const st = norm(next.status);
         nextChip.hidden = false;
-        nextChip.className = 'chip ' + (st==='atraso' ? 'chip-failed' : st==='pendente' ? 'chip-pending' : 'chip-info');
-        nextChip.textContent = st==='atraso' ? 'Em atraso' : st==='pendente' ? 'Pendente' : 'Próxima';
+        nextChip.className = 'chip ' + (isOverdueStatus(st) ? 'chip-failed' : isPendingStatus(st) ? 'chip-pending' : 'chip-info');
+        nextChip.textContent = isOverdueStatus(st) ? 'Em atraso' : isPendingStatus(st) ? 'Pendente' : 'Próxima';
 
-        if (['pendente','atraso'].includes(st)){
+        if (isPendingStatus(st) || isOverdueStatus(st)){
           NEXT_ID = next.id;
           nextActs.hidden = false;
         } else {
@@ -395,18 +630,21 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
         nextActs.hidden = true;
       }
 
-      const pagos = inv.filter(i => norm(i.status)==='pago');
+      const pagos = inv.filter(i => isPaidStatus(i.status));
       let last = null;
+
       if (pagos.length){
         last = pagos
           .map(i => ({...i, _ts: Date.parse(i.paid_at||i.due_date||'1970-01-01') }))
           .sort((a,b)=> b._ts - a._ts)[0];
       }
+
       if (last){
-        lastAmount.textContent = fmtBRL(last.amount);
+        lastAmount.textContent = fmtBRL(invAmount(last));
         lastDate.textContent   = (last.paid_at ? ('Pago em: ' + fmtDateBR(last.paid_at)) :
                                   last.due_date ? ('Ref. ' + fmtDateBR(last.due_date)) : '—');
         lastChip.hidden = false;
+
         if (last.receipt_url){
           btnReceipt.href = last.receipt_url;
           lastActs.hidden = false;
@@ -477,7 +715,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   --rail-top: calc(var(--topnav-h, 52px) + 12px);
 }
 
-/* container herdado já limita largura; garantimos overflow visível */
 .container.member{
   width: min(92vw, var(--container)) !important;
   margin-inline:auto;
@@ -485,7 +722,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   overflow:visible;
 }
 
-/* strip: 3 col visual (L | MAIN | R), mas os asides “saem” do container */
 .rail-strip{
   position: relative;
   display: grid;
@@ -494,7 +730,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 }
 .rail-main{ min-width:0; }
 
-/* asides colados nas bordas do container, saindo com margem negativa */
 .rail-sky{
   position: sticky;
   top: var(--rail-top);
@@ -512,7 +747,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   margin-right: calc(-1 * (var(--rail-w) + var(--rail-gap)));
 }
 
-/* caixa do anúncio */
 .adbox-sky{
   width: var(--rail-w);
   max-width: 100%;
@@ -527,7 +761,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 .adbox-sky a{ display:block; width:100%; height:100%; }
 .adbox-sky img{ display:block; width:100%; height:100%; object-fit:cover; }
 
-/* Skeleton */
 .ad-skeleton{
   position:absolute;
   inset:0;
@@ -537,7 +770,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 }
 @keyframes adsh { to { background-position: -200% 0; } }
 
-/* ===== Cards desta página ===== */
 .glass-card{
   background:#ffffff;
   border:1px solid var(--border-subtle);
@@ -554,7 +786,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 }
 .muted{ color:var(--muted); }
 
-/* Alerta pequeno */
 .alert{
   margin-top:10px;
   padding:10px 12px;
@@ -565,7 +796,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   font-weight:600;
 }
 
-/* ===== Carteirinha (uc-*) ===== */
+/* ===== Carteirinha principal ===== */
 .ucard{
   border:1px solid var(--border-subtle);
   border-radius:18px;
@@ -581,10 +812,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   padding-bottom:8px;
   border-bottom:1px dashed #d4dbe6;
 }
-.uc-logo{
-  width:96px;
-  height:auto;
-}
+.uc-logo{ width:96px; height:auto; }
 .uc-code{
   font-size:.8rem;
   font-weight:800;
@@ -603,7 +831,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 @media (max-width: 760px){
   .uc-body{ grid-template-columns:1fr; }
 }
-
 .uc-grid{
   display:grid;
   gap:8px;
@@ -612,11 +839,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
 @media (max-width: 560px){
   .uc-grid{ grid-template-columns:1fr; }
 }
-.uc-field{
-  display:grid;
-  gap:2px;
-  min-width:0;
-}
+.uc-field{ display:grid; gap:2px; min-width:0; }
 .uc-label{
   font-size:.72rem;
   text-transform:uppercase;
@@ -636,7 +859,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   overflow:hidden;
   text-overflow:ellipsis;
 }
-
 .uc-right{
   display:flex;
   flex-direction:column;
@@ -653,15 +875,8 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   display:grid;
   place-items:center;
 }
-.uc-qr img{
-  width:100%;
-  height:100%;
-  object-fit:contain;
-}
-.uc-qr-caption{
-  font-size:.8rem;
-}
-
+.uc-qr img{ width:100%; height:100%; object-fit:contain; }
+.uc-qr-caption{ font-size:.8rem; }
 .uc-actions{
   display:flex;
   gap:8px;
@@ -669,7 +884,100 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   flex-wrap:wrap;
 }
 
-/* ===== Faturas (resumo) ===== */
+/* ===== Dependentes ===== */
+.dep-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+@media (max-width: 860px){
+  .dep-grid{ grid-template-columns: 1fr; }
+}
+.dep-card{
+  border:1px solid var(--border-subtle);
+  border-radius:16px;
+  padding:12px;
+  background:#ffffff;
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+}
+.dep-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  padding-bottom:10px;
+  border-bottom:1px dashed #e2e8f0;
+}
+.dep-label{
+  font-size:.72rem;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.dep-value{
+  font-weight:900;
+  color:var(--ink);
+  line-height:1.15;
+}
+.dep-code{
+  font-weight:900;
+  font-size:.82rem;
+  padding:4px 10px;
+  border-radius:999px;
+  border:1px solid #cbd5f5;
+  background:#eef2ff;
+  color:var(--ink);
+  white-space:nowrap;
+}
+.dep-body{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap:12px;
+  align-items:start;
+}
+@media (max-width: 560px){
+  .dep-body{ grid-template-columns: 1fr; }
+}
+.dep-fields{ display:grid; gap:6px; }
+.dep-row{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  font-size:.92rem;
+}
+.dep-k{ color:var(--muted); font-weight:700; }
+.dep-v{ color:var(--ink); font-weight:800; text-align:right; }
+.dep-ellipsis{
+  max-width: 220px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.dep-qrbox{
+  display:grid;
+  justify-items:center;
+  gap:6px;
+  padding:10px;
+  border:1px solid var(--border-subtle);
+  border-radius:14px;
+  background:#f8fafc;
+}
+.dep-qrbox img{
+  width:112px;
+  height:112px;
+  border-radius:10px;
+  background:#fff;
+  border:1px solid var(--border-subtle);
+}
+.dep-actions{
+  display:flex;
+  gap:8px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+
+/* ===== Faturas ===== */
 .inv-quick{
   display:grid;
   grid-template-columns: 1fr 1fr auto;
@@ -696,30 +1004,14 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   justify-content:space-between;
   gap:8px;
 }
-.tile-title{
-  font-weight:800;
-  color:var(--ink);
-}
-.tile-value{
-  font-size:1.4rem;
-  font-weight:900;
-  color:var(--ink);
-}
-.tile-sub{
-  font-size:.92rem;
-  color:var(--muted);
-}
+.tile-title{ font-weight:800; color:var(--ink); }
+.tile-value{ font-size:1.4rem; font-weight:900; color:var(--ink); }
+.tile-sub{ font-size:.92rem; color:var(--muted); }
 .tile-actions{ margin-top:4px; }
+.inv-side-actions{ display:flex; align-items:center; }
+.inv-side-actions .btn{ white-space:nowrap; }
 
-.inv-side-actions{
-  display:flex;
-  align-items:center;
-}
-.inv-side-actions .btn{
-  white-space:nowrap;
-}
-
-/* Chips (coloridos mas legíveis no claro) */
+/* Chips */
 .chip{
   display:inline-block;
   padding:5px 8px;
@@ -729,36 +1021,14 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   background:#f9fafb;
   color:var(--ink);
 }
-.chip-info{
-  background:#e0f2fe;
-  border-color:#bae6fd;
-  color:#075985;
-}
-.chip-success{
-  background:#dcfce7;
-  border-color:#bbf7d0;
-  color:#166534;
-}
-.chip-pending{
-  background:#fef9c3;
-  border-color:#fef08a;
-  color:#854d0e;
-}
-.chip-failed{
-  background:#fee2e2;
-  border-color:#fecaca;
-  color:#b91c1c;
-}
+.chip-info{ background:#e0f2fe; border-color:#bae6fd; color:#075985; }
+.chip-success{ background:#dcfce7; border-color:#bbf7d0; color:#166534; }
+.chip-pending{ background:#fef9c3; border-color:#fef08a; color:#854d0e; }
+.chip-failed{ background:#fee2e2; border-color:#fecaca; color:#b91c1c; }
 
-/* Botões menores desta página */
-.btn-sm{
-  padding:9px 14px;
-  font-size:.95rem;
-}
-.btn-xs{
-  padding:6px 10px;
-  font-size:.85rem;
-}
+/* Botões menores */
+.btn-sm{ padding:9px 14px; font-size:.95rem; }
+.btn-xs{ padding:6px 10px; font-size:.85rem; }
 
 /* Modal */
 .modal{
@@ -771,10 +1041,7 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   padding:16px;
 }
 .modal.is-open{ display:grid; }
-.modal-box{
-  max-width:520px;
-  width:100%;
-}
+.modal-box{ max-width:520px; width:100%; }
 .modal-actions{
   display:flex;
   gap:10px;
@@ -790,7 +1057,6 @@ $adSkyFallback = $adSkyFallback ?? '/img/ads/160x600-default.png';
   border:1px solid var(--border-subtle);
 }
 
-/* Responsivo: esconder rails em telas pequenas */
 @media (max-width: 1020px){
   .rail-sky{ display:none !important; }
 }

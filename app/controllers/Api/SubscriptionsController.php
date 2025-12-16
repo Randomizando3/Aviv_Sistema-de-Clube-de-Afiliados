@@ -53,62 +53,61 @@ class SubscriptionsController
     return $defaultYmd;
   }
 
+  private function digitsOnly(string $s): string {
+    return preg_replace('/\D+/', '', $s);
+  }
+
   private function ensureSchema(PDO $pdo): void {
     $db = $this->currentDb($pdo);
 
-    /**
-     * Garante que a tabela plans exista (para validar e calcular preços).
-     * Se já existir (com mais colunas), não altera nada aqui.
-     */
+    // plans (mantém compatível com seu schema atual)
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS plans (
-        id VARCHAR(50) PRIMARY KEY,
-        name VARCHAR(120) NOT NULL,
-        description TEXT NULL,
-        price_monthly DECIMAL(10,2) DEFAULT 0,
-        price_yearly  DECIMAL(10,2) DEFAULT 0,
-        status ENUM('active','inactive') DEFAULT 'active',
-        sort_order INT DEFAULT 0,
-
-        -- Familiar
-        is_family TINYINT(1) DEFAULT 0,
-        min_users INT DEFAULT 1,
-        max_users INT DEFAULT 0,
-        add_user_monthly DECIMAL(10,2) DEFAULT 0,
-        add_user_yearly  DECIMAL(10,2) DEFAULT 0,
-
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        id varchar(32) NOT NULL,
+        name varchar(80) NOT NULL,
+        description text,
+        monthly_price decimal(10,2) DEFAULT '0.00',
+        yearly_monthly_price decimal(10,2) DEFAULT NULL,
+        status enum('active','inactive') NOT NULL DEFAULT 'active',
+        features json DEFAULT NULL,
+        price_monthly decimal(10,2) DEFAULT '0.00',
+        price_yearly decimal(10,2) DEFAULT '0.00',
+        sort_order int DEFAULT '0',
+        created_at datetime DEFAULT CURRENT_TIMESTAMP,
+        is_family tinyint(1) DEFAULT '0',
+        min_users int DEFAULT '1',
+        max_users int DEFAULT '0',
+        add_user_monthly decimal(10,2) DEFAULT '0.00',
+        add_user_yearly decimal(10,2) DEFAULT '0.00',
+        PRIMARY KEY (id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
-    /**
-     * Subscriptions + ajustes legados
-     */
+    // subscriptions (BIGINT)
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS subscriptions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        user_id BIGINT UNSIGNED NOT NULL,
         plan_id VARCHAR(50) NOT NULL,
         cycle ENUM('monthly','yearly') NOT NULL DEFAULT 'monthly',
         status ENUM('ativa','suspensa','cancelada') NOT NULL DEFAULT 'suspensa',
         started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         renew_at DATE DEFAULT NULL,
         amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-
-        -- quantidade para plano familiar
         qty_users INT NOT NULL DEFAULT 1,
-
         asaas_customer_id VARCHAR(80) DEFAULT NULL,
         asaas_subscription_id VARCHAR(80) DEFAULT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
         KEY user_idx (user_id),
         KEY plan_idx (plan_id),
-        KEY status_idx (status)
+        KEY status_idx (status),
+        KEY asaas_sub_idx (asaas_subscription_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
-    // Migração suave: value -> amount
+    // Migração value -> amount se existir
     $hasValue  = $this->colExists($pdo, $db, 'subscriptions', 'value');
     $hasAmount = $this->colExists($pdo, $db, 'subscriptions', 'amount');
     if ($hasValue && !$hasAmount) {
@@ -118,63 +117,39 @@ class SubscriptionsController
       try { $pdo->exec("ALTER TABLE subscriptions DROP COLUMN value"); } catch (\Throwable $e) {}
     }
 
-    // Corrige enum antigo de status
-    $colType = $pdo->query("
-      SELECT COLUMN_TYPE FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='subscriptions' AND COLUMN_NAME='status'
-    ")->fetchColumn();
-
-    if (is_string($colType) && stripos($colType, "enum('active','suspended','canceled')") !== false) {
-      $pdo->exec("ALTER TABLE subscriptions CHANGE COLUMN status status VARCHAR(20) NOT NULL");
-      $pdo->exec("UPDATE subscriptions SET status=LOWER(TRIM(status))");
-      $pdo->exec("UPDATE subscriptions SET status='ativa'     WHERE status IN ('active','ativa','')");
-      $pdo->exec("UPDATE subscriptions SET status='suspensa'  WHERE status IN ('suspended','suspensa')");
-      $pdo->exec("UPDATE subscriptions SET status='cancelada' WHERE status IN ('canceled','cancelada')");
-      $pdo->exec("ALTER TABLE subscriptions CHANGE COLUMN status status ENUM('ativa','suspensa','cancelada') NOT NULL DEFAULT 'suspensa'");
-    }
-
-    // Garante cycle enum correto
-    $pdo->exec("ALTER TABLE subscriptions CHANGE COLUMN cycle cycle ENUM('monthly','yearly') NOT NULL DEFAULT 'monthly'");
-
-    // Garante colunas Asaas
-    if (!$this->colExists($pdo, $db, 'subscriptions', 'asaas_customer_id')) {
-      $pdo->exec("ALTER TABLE subscriptions ADD COLUMN asaas_customer_id VARCHAR(80) NULL AFTER qty_users");
-    }
-    if (!$this->colExists($pdo, $db, 'subscriptions', 'asaas_subscription_id')) {
-      $pdo->exec("ALTER TABLE subscriptions ADD COLUMN asaas_subscription_id VARCHAR(80) NULL AFTER asaas_customer_id");
-    }
-
-    // Garante qty_users (caso tabela já exista antiga)
-    $this->addColumnIfMissing(
-      $pdo,
-      $db,
-      'subscriptions',
-      'qty_users',
-      "ALTER TABLE subscriptions ADD COLUMN qty_users INT NOT NULL DEFAULT 1 AFTER amount"
-    );
-
-    /**
-     * invoices e webhooks_log
-     */
+    // invoices (compatível)
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS invoices (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        subscription_id INT NULL,
-        asaas_invoice_id VARCHAR(80) UNIQUE,
-        value DECIMAL(10,2) NOT NULL DEFAULT 0,
-        status VARCHAR(20) NOT NULL DEFAULT 'pending',
-        due_date DATE NULL,
-        paid_at DATETIME NULL,
-        raw JSON NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        KEY sub_idx (subscription_id),
-        KEY status_idx (status)
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        subscription_id BIGINT UNSIGNED DEFAULT NULL,
+        asaas_invoice_id VARCHAR(64) DEFAULT NULL,
+        value DECIMAL(10,2) NOT NULL,
+        status ENUM('pending','paid','overdue','canceled') NOT NULL DEFAULT 'pending',
+        due_date DATE DEFAULT NULL,
+        paid_at DATETIME DEFAULT NULL,
+        raw JSON DEFAULT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_inv_sub (subscription_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
 
+    // FK invoices -> subscriptions (tenta)
+    try {
+      if ($this->tableExists($pdo, $db, 'subscriptions')) {
+        $pdo->exec("
+          ALTER TABLE invoices
+            ADD CONSTRAINT fk_inv_sub
+            FOREIGN KEY (subscription_id) REFERENCES subscriptions(id)
+            ON DELETE SET NULL
+        ");
+      }
+    } catch (\Throwable $e) {}
+
+    // webhooks_log
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS webhooks_log (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         provider VARCHAR(40) NOT NULL,
         event VARCHAR(80) NOT NULL,
         signature TEXT NULL,
@@ -182,17 +157,29 @@ class SubscriptionsController
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ");
+
+    /**
+     * subscription_people (EXATAMENTE como seu schema atual)
+     * Obs: se já existe, não altera.
+     */
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS subscription_people (
+        id bigint unsigned NOT NULL AUTO_INCREMENT,
+        subscription_id bigint unsigned NOT NULL,
+        role enum('holder','dependent') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'dependent',
+        full_name varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL,
+        doc_type enum('CPF','CNPJ','RG','CN','MATRICULA') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'CPF',
+        doc_value varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_sub (subscription_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
   }
 
-  /**
-   * Calcula o valor final do plano:
-   * - Individual: base do ciclo
-   * - Familiar: base (para min_users) + (qty_users - min_users) * adicional (do ciclo)
-   */
   private function calcPlanAmount(PDO $pdo, string $planId, string $cycleUi, int &$qtyUsersOut): float {
     $cols = $this->planCols($pdo);
 
-    // Colunas tolerantes (caso existam nomes legados)
     $colPm = in_array('price_monthly', $cols) ? 'price_monthly' : (in_array('monthly_price', $cols) ? 'monthly_price' : null);
     $colPy = in_array('price_yearly',  $cols) ? 'price_yearly'  : (in_array('yearly_price',  $cols) ? 'yearly_price'  : null);
 
@@ -202,7 +189,6 @@ class SubscriptionsController
     $colAddM  = in_array('add_user_monthly', $cols) ? 'add_user_monthly' : null;
     $colAddY  = in_array('add_user_yearly',  $cols) ? 'add_user_yearly'  : null;
 
-    // Monta SELECT
     $select = "id, status";
     $select .= $colPm ? ", $colPm AS pm" : ", NULL AS pm";
     $select .= $colPy ? ", $colPy AS py" : ", NULL AS py";
@@ -222,8 +208,6 @@ class SubscriptionsController
 
     $pm = isset($p['pm']) ? (float)$p['pm'] : 0.0;
     $py = isset($p['py']) ? (float)$p['py'] : null;
-
-    // fallback anual: 12x com desconto 15%
     if ($py === null) $py = $pm * 12 * 0.85;
 
     $isFam = ((int)($p['is_family'] ?? 0) === 1);
@@ -237,20 +221,93 @@ class SubscriptionsController
       return $cycleUi === 'yearly' ? (float)$py : (float)$pm;
     }
 
-    // Familiar: mínimo recomendado >= 2
     if ($minU < 2) $minU = 2;
     if ($maxU > 0 && $maxU < $minU) $maxU = $minU;
 
-    // clamp qty
     $qtyUsersOut = $this->clampInt($qtyUsersOut, $minU, $maxU > 0 ? $maxU : PHP_INT_MAX);
 
     $base = $cycleUi === 'yearly' ? (float)$py : (float)$pm;
     $add  = $cycleUi === 'yearly' ? $addY : $addM;
 
     $extra = max(0, $qtyUsersOut - $minU);
-    $amount = $base + ($extra * $add);
+    return (float)($base + ($extra * $add));
+  }
 
-    return (float)$amount;
+  /**
+   * Salva titular + dependentes em subscription_people (SEMPRE no schema atual)
+   * - Titular: role=holder, full_name, doc_type (CPF/CNPJ), doc_value
+   * - Dependentes: role=dependent, full_name, doc_type (CPF/RG/CN/MATRICULA), doc_value
+   */
+  private function savePeople(PDO $pdo, int $subscriptionId, string $holderName, string $holderDocDigits, string $dependentsJson): void {
+    if ($subscriptionId <= 0) return;
+
+    $db = $this->currentDb($pdo);
+    if (!$this->tableExists($pdo, $db, 'subscription_people')) return;
+
+    // 1) Garante titular
+    $holderName = trim($holderName);
+    if ($holderName === '') $holderName = 'Titular';
+
+    $docDigits = $this->digitsOnly($holderDocDigits);
+    $holderType = (strlen($docDigits) === 14) ? 'CNPJ' : 'CPF';
+    if (!in_array(strlen($docDigits), [11,14], true)) {
+      // se por algum motivo não vier válido, guarda como CPF mesmo (mas não quebra o fluxo)
+      $docDigits = substr($docDigits, 0, 64);
+      $holderType = 'CPF';
+    }
+
+    $ck = $pdo->prepare("SELECT COUNT(*) FROM subscription_people WHERE subscription_id=? AND role='holder'");
+    $ck->execute([$subscriptionId]);
+    if ((int)$ck->fetchColumn() === 0) {
+      $insH = $pdo->prepare("
+        INSERT INTO subscription_people (subscription_id, role, full_name, doc_type, doc_value)
+        VALUES (?, 'holder', ?, ?, ?)
+      ");
+      $insH->execute([$subscriptionId, $holderName, $holderType, $docDigits]);
+    }
+
+    // 2) Dependentes: limpa e recria para evitar duplicação em re-tentativas
+    $pdo->prepare("DELETE FROM subscription_people WHERE subscription_id=? AND role='dependent'")
+        ->execute([$subscriptionId]);
+
+    $dependentsJson = trim((string)$dependentsJson);
+    if ($dependentsJson === '') return;
+
+    $arr = json_decode($dependentsJson, true);
+    if (!is_array($arr) || empty($arr)) return;
+
+    $allowedTypes = ['CPF','CNPJ','RG','CN','MATRICULA'];
+
+    $insD = $pdo->prepare("
+      INSERT INTO subscription_people (subscription_id, role, full_name, doc_type, doc_value)
+      VALUES (?, 'dependent', ?, ?, ?)
+    ");
+
+    foreach ($arr as $d) {
+      if (!is_array($d)) continue;
+
+      // seu front manda: {name, doc_type, doc_value}
+      $fullName = trim((string)($d['full_name'] ?? $d['name'] ?? ''));
+      $docType  = strtoupper(trim((string)($d['doc_type'] ?? 'CPF')));
+      $docValue = trim((string)($d['doc_value'] ?? ''));
+
+      if ($fullName === '' || mb_strlen($fullName) < 3) continue;
+      if (!in_array($docType, $allowedTypes, true)) continue;
+
+      // Normaliza CPF/CNPJ
+      if ($docType === 'CPF' || $docType === 'CNPJ') {
+        $digits = $this->digitsOnly($docValue);
+        if ($docType === 'CPF' && strlen($digits) !== 11) continue;
+        if ($docType === 'CNPJ' && strlen($digits) !== 14) continue;
+        $docValue = $digits;
+      } else {
+        // RG/CN/MATRICULA: aceita texto, mínimo 3 chars
+        if (mb_strlen($docValue) < 3) continue;
+        if (mb_strlen($docValue) > 64) $docValue = mb_substr($docValue, 0, 64);
+      }
+
+      $insD->execute([$subscriptionId, $fullName, $docType, $docValue]);
+    }
   }
 
   // POST /?r=api/subscriptions/create
@@ -270,43 +327,40 @@ class SubscriptionsController
 
       $cycleUi = in_array(($_POST['cycle'] ?? 'monthly'), ['monthly','yearly'], true) ? $_POST['cycle'] : 'monthly';
 
-      // >>> FORÇA SOMENTE BOLETO (checkout de cartão removido)
+      // FORÇA BOLETO
       $billingType = 'BOLETO';
 
-      // quantidade (para familiar)
       $qtyUsers = (int)($_POST['qty_users'] ?? 1);
       if ($qtyUsers < 1) $qtyUsers = 1;
 
-      // nextDueDate (mantém seu padrão: amanhã)
+      $dependentsJson = (string)($_POST['dependents_json'] ?? '');
+
       $nextDueDate = $this->parseDateOrDefault($_POST['nextDueDate'] ?? null, date('Y-m-d', strtotime('+1 day')));
 
-      // perfil (fallbacks)
       $ps = $pdo->prepare("SELECT name, email, document, phone FROM users WHERE id=? LIMIT 1");
       $ps->execute([$userId]);
       $prof = $ps->fetch(PDO::FETCH_ASSOC) ?: [];
 
-      $cpfCnpjPost = preg_replace('/\D+/', '', $_POST['cpfCnpj'] ?? '');
-      $cpfCnpjDb   = preg_replace('/\D+/', '', $prof['document'] ?? '');
+      $cpfCnpjPost = $this->digitsOnly((string)($_POST['cpfCnpj'] ?? ''));
+      $cpfCnpjDb   = $this->digitsOnly((string)($prof['document'] ?? ''));
       $cpfCnpj     = $cpfCnpjPost ?: $cpfCnpjDb;
+
       if (!in_array(strlen($cpfCnpj), [11,14], true)) {
         \Json::fail('É necessário informar um CPF/CNPJ válido (perfil ou formulário).', 422);
       }
 
-      $mobilePost  = preg_replace('/\D+/', '', $_POST['mobilePhone'] ?? '');
-      $mobileDb    = preg_replace('/\D+/', '', $prof['phone'] ?? '');
+      $mobilePost  = $this->digitsOnly((string)($_POST['mobilePhone'] ?? ''));
+      $mobileDb    = $this->digitsOnly((string)($prof['phone'] ?? ''));
       $mobile      = $mobilePost ?: $mobileDb;
       $mobileValid = (strlen($mobile) >= 10 && strlen($mobile) <= 11);
 
-      // Email e nome
       $email = trim((string)($u['email'] ?? $prof['email'] ?? ''));
       if (!filter_var($email, FILTER_VALIDATE_EMAIL)) \Json::fail('E-mail do usuário inválido.', 422);
 
       $name  = trim((string)($_POST['name'] ?? $u['name'] ?? $prof['name'] ?? 'Cliente'));
 
-      // >>> Calcula amount no servidor (inclui familiar + qty_users)
       $amount = $this->calcPlanAmount($pdo, $planId, $cycleUi, $qtyUsers);
 
-      // ==== Asaas
       $customerPayload = ['name'=>$name,'email'=>$email,'cpfCnpj'=>$cpfCnpj];
       if ($mobileValid) $customerPayload['mobilePhone'] = $mobile;
 
@@ -323,12 +377,11 @@ class SubscriptionsController
         }
       }
 
-      // Asaas subscription cycle
       $cycleAsaas = $cycleUi === 'yearly' ? 'YEARLY' : 'MONTHLY';
 
       $payload = [
         'customer'    => $cust['id'],
-        'billingType' => $billingType, // BOLETO
+        'billingType' => $billingType,
         'value'       => $amount,
         'cycle'       => $cycleAsaas,
         'nextDueDate' => $nextDueDate,
@@ -336,7 +389,6 @@ class SubscriptionsController
 
       $sub = $asaas->createSubscription($payload);
 
-      // >>> assinatura local nasce como 'suspensa' (aguardando pagamento)
       $statusStart = 'suspensa';
 
       $ins = $pdo->prepare("
@@ -357,23 +409,29 @@ class SubscriptionsController
         $sub['id']
       ]);
 
+      $localSubId = (int)$pdo->lastInsertId();
+
+      // >>> AQUI É O PONTO QUE ESTAVA FALTANDO: grava titular + dependentes <<<
+      try {
+        $this->savePeople($pdo, $localSubId, $name, $cpfCnpj, $dependentsJson);
+      } catch (\Throwable $e) {}
+
       // primeira fatura pendente
       $pays = $asaas->getPayments(['subscription' => $sub['id'], 'limit' => 1]);
       $payment = ($pays['totalCount'] ?? 0) ? ($pays['data'][0] ?? null) : null;
 
       if ($payment) {
+        $mapStatus = 'pending';
+        if (in_array(strtoupper((string)($payment['status'] ?? '')), ['RECEIVED','CONFIRMED'], true)) $mapStatus = 'paid';
+
         $pdo->prepare("
           INSERT INTO invoices (subscription_id, asaas_invoice_id, value, status, due_date, raw)
-          VALUES (
-            (SELECT id FROM subscriptions WHERE asaas_subscription_id=? LIMIT 1),
-            ?, ?, ?, ?, ?
-          )
+          VALUES (?, ?, ?, ?, ?, ?)
         ")->execute([
-          $sub['id'],
-          $payment['id'],
+          $localSubId > 0 ? $localSubId : null,
+          $payment['id'] ?? null,
           $payment['value'] ?? $amount,
-          strtolower($payment['status'] ?? 'PENDING') === 'pending' ? 'pending'
-            : (in_array(strtoupper($payment['status'] ?? ''), ['RECEIVED','CONFIRMED']) ? 'paid' : 'pending'),
+          $mapStatus,
           $payment['dueDate'] ?? $nextDueDate,
           json_encode($payment, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),
         ]);
@@ -381,7 +439,7 @@ class SubscriptionsController
 
       \Json::ok([
         'ok' => true,
-        'subscription' => ['id' => $sub['id']],
+        'subscription' => ['id' => $sub['id'], 'local_id' => $localSubId],
         'qty_users' => $qtyUsers,
         'amount' => $amount,
         'payment' => [
@@ -397,6 +455,7 @@ class SubscriptionsController
       ]);
     } catch (\Throwable $e) {
       $msg = $e->getMessage();
+
       if (strpos($msg, 'Asaas HTTP 400') !== false) {
         if (preg_match('/\{.*\}$/', $msg, $m)) {
           $j = json_decode($m[0], true);
@@ -405,6 +464,7 @@ class SubscriptionsController
         }
         \Json::fail('asaas_bad_request', 422);
       }
+
       @file_put_contents(BASE_PATH . '/storage/logs/subscriptions_member_err.log', date('c')." [create] ".$msg."\n", FILE_APPEND);
       \Json::fail('internal_error', 500);
     }

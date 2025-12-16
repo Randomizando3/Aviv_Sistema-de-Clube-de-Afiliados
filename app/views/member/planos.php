@@ -66,13 +66,27 @@
       <div class="terms-form">
         <div class="terms-grid">
           <div class="input-wrap">
-            <label class="tlabel" for="ts-name">Nome para assinatura</label>
+            <label class="tlabel" for="ts-name">Nome para assinatura (titular)</label>
             <input class="field" id="ts-name" type="text" placeholder="Ex.: João da Silva" autocomplete="name" required>
           </div>
 
           <div class="input-wrap">
-            <label class="tlabel" for="ts-doc">Documento (CPF/CNPJ)</label>
+            <label class="tlabel" for="ts-doc">Documento do titular (CPF/CNPJ)</label>
             <input class="field" id="ts-doc" type="text" placeholder="Digite seu CPF/CNPJ" required>
+          </div>
+        </div>
+
+        <!-- Dependentes (somente para plano familiar) -->
+        <div id="dep-wrap" class="deps-wrap" style="display:none">
+          <div class="deps-head">
+            <div>
+              <div class="deps-title">Dependentes (Plano Familiar)</div>
+              <div class="muted deps-sub" id="dep-sub">Informe os dados dos dependentes.</div>
+            </div>
+          </div>
+          <div id="dep-list" class="deps-list"></div>
+          <div class="muted deps-hint">
+            CPF: 11 dígitos. RG e CN (matrícula da Certidão de Nascimento): texto livre.
           </div>
         </div>
 
@@ -148,6 +162,11 @@ const sigClear       = document.getElementById('sig-clear');
 const termsDoc       = document.getElementById('terms-doc');
 const termsToggleBtn = document.getElementById('terms-toggle');
 
+// Dependentes UI
+const depWrap        = document.getElementById('dep-wrap');
+const depList        = document.getElementById('dep-list');
+const depSub         = document.getElementById('dep-sub');
+
 function setAlert(msg){
   alertBox.style.display='block';
   alertBox.textContent = msg;
@@ -167,6 +186,14 @@ function digitsOnly(s){ return String(s||'').replace(/\D+/g,''); }
 function isCpfCnpjValid(s){
   const d = digitsOnly(s);
   return d.length === 11 || d.length === 14;
+}
+function isCpfValidStrict(s){
+  const d = digitsOnly(s);
+  return d.length === 11;
+}
+function isFreeDocValid(s){
+  const v = String(s||'').trim();
+  return v.length >= 3;
 }
 
 async function fetchJsonOrText(url, opts){
@@ -246,7 +273,6 @@ async function refreshOverview(reloadPlans = true){
   if (!r.ok) return;
   const j = await r.json();
 
-  // tenta capturar perfil do payload (robusto)
   const u = j.user || j.me || j.profile || j.member || {};
   PROFILE_DEFAULTS.name = String(u.name || j.name || '').trim();
   PROFILE_DEFAULTS.document = String(u.document || u.cpfCnpj || u.cpf || u.cnpj || j.document || '').trim();
@@ -315,7 +341,6 @@ async function loadPlans(){
     return;
   }
   const j = resp.json || {};
-  // filtro robusto (aceita "active"/"Ativo" e afins, e remove inativos)
   PLANS = (j.plans||[]).filter(p => String(p.status || 'active').toLowerCase() !== 'inactive');
 }
 
@@ -401,7 +426,6 @@ function updateAllPlanPrices(){
         );
     }
 
-    // garante que o número apareça (atualiza o input visível)
     const qtyInput = card.querySelector('.qty-input');
     if (qtyInput && isFamilyPlan(p)) {
       qtyInput.value = String(clampQty(p, QTY_BY_PLAN[pid] ?? planMinUsers(p)));
@@ -496,7 +520,6 @@ async function renderPlans(){
 
   radios.forEach(r => r.addEventListener('change', syncSelected));
 
-  // handlers qty (inc/dec/input) + espelha número
   plansHolder.querySelectorAll('.plan-option[data-is-family="1"]').forEach(card=>{
     const pid = card.getAttribute('data-plan-id');
     const p = PLANS.find(x=>String(x.id)===String(pid));
@@ -521,7 +544,6 @@ async function renderPlans(){
     input?.addEventListener('input', ()=> applyQty(input.value));
     input?.addEventListener('change', ()=> applyQty(input.value));
 
-    // garante inicial
     applyQty(QTY_BY_PLAN[pid] ?? planMinUsers(p));
   });
 
@@ -548,10 +570,11 @@ function resizeSigCanvasToCss(){
   const dpr  = window.devicePixelRatio || 1;
   const w = Math.max(1, Math.floor(rect.width * dpr));
   const h = Math.max(1, Math.floor(rect.height * dpr));
-  const old = ctx.getImageData(0,0,sigCanvas.width,sigCanvas.height);
+  let old;
+  try { old = ctx.getImageData(0,0,sigCanvas.width,sigCanvas.height); } catch(e) { old = null; }
   sigCanvas.width  = w;
   sigCanvas.height = h;
-  ctx.putImageData(old, 0, 0);
+  if (old) { try { ctx.putImageData(old, 0, 0); } catch(e) {} }
   ctx.lineWidth = 2.2 * dpr;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -597,8 +620,133 @@ sigCanvas.addEventListener('touchend', endDraw);
 sigClear.addEventListener('click', clearSig);
 window.addEventListener('resize', ()=> { if (termsModal.style.display !== 'none') resizeSigCanvasToCss(); });
 
+/* ===== Dependentes ===== */
+let DEPENDENTS = []; // [{name, doc_type, doc_value}]
+function needDependentCount(){
+  if (!PENDING_SELECTION?.isFamily) return 0;
+  const qty = parseInt(PENDING_SELECTION?.qty_users || 1, 10);
+  return Math.max(0, qty - 1);
+}
+function normalizeDependentsArray(n){
+  const want = Math.max(0, parseInt(n,10) || 0);
+  if (!Array.isArray(DEPENDENTS)) DEPENDENTS = [];
+  // preserva o que já foi digitado
+  while (DEPENDENTS.length < want) {
+    DEPENDENTS.push({ name:'', doc_type:'CPF', doc_value:'' });
+  }
+  if (DEPENDENTS.length > want) DEPENDENTS = DEPENDENTS.slice(0, want);
+}
+function renderDependents(){
+  const n = needDependentCount();
+  normalizeDependentsArray(n);
+
+  if (!PENDING_SELECTION?.isFamily || n <= 0) {
+    depWrap.style.display = 'none';
+    depList.innerHTML = '';
+    return;
+  }
+
+  depWrap.style.display = 'block';
+  depSub.textContent = `Cadastre ${n} dependente(s) para gerar as carteirinhas individuais.`;
+
+  depList.innerHTML = DEPENDENTS.map((d, idx) => {
+    const docHint = (d.doc_type === 'CPF')
+      ? 'Somente números (11 dígitos)'
+      : (d.doc_type === 'RG' ? 'RG (pode conter letras)' : 'Matrícula da CN (texto livre)');
+    return `
+      <div class="dep-item" data-dep-idx="${idx}">
+        <div class="dep-top">
+          <div class="dep-badge">Dependente ${idx+1}</div>
+        </div>
+
+        <div class="dep-grid">
+          <div class="input-wrap">
+            <label class="tlabel" for="dep-name-${idx}">Nome</label>
+            <input class="field dep-name" id="dep-name-${idx}" type="text" placeholder="Nome completo" value="${escapeAttr(d.name)}">
+          </div>
+
+          <div class="input-wrap">
+            <label class="tlabel" for="dep-type-${idx}">Documento</label>
+            <div class="dep-docrow">
+              <select class="field dep-type" id="dep-type-${idx}" aria-label="Tipo de documento do dependente">
+                <option value="CPF" ${d.doc_type==='CPF'?'selected':''}>CPF</option>
+                <option value="RG"  ${d.doc_type==='RG'?'selected':''}>RG</option>
+                <option value="CN"  ${d.doc_type==='CN'?'selected':''}>CN (Matrícula)</option>
+              </select>
+              <input class="field dep-doc" id="dep-doc-${idx}" type="text" placeholder="${escapeAttr(docHint)}" value="${escapeAttr(d.doc_value)}">
+            </div>
+          </div>
+        </div>
+
+        <div class="dep-err muted" id="dep-err-${idx}" style="display:none"></div>
+      </div>
+    `;
+  }).join('');
+
+  // binds
+  depList.querySelectorAll('.dep-item').forEach(item => {
+    const idx = parseInt(item.getAttribute('data-dep-idx'), 10);
+    const inpName = item.querySelector('.dep-name');
+    const selType = item.querySelector('.dep-type');
+    const inpDoc  = item.querySelector('.dep-doc');
+
+    function sync(){
+      DEPENDENTS[idx].name = (inpName.value || '').trim();
+      DEPENDENTS[idx].doc_type = (selType.value || 'CPF');
+      DEPENDENTS[idx].doc_value = (inpDoc.value || '').trim();
+
+      // placeholder dinâmico
+      const docHint = (DEPENDENTS[idx].doc_type === 'CPF')
+        ? 'Somente números (11 dígitos)'
+        : (DEPENDENTS[idx].doc_type === 'RG' ? 'RG (pode conter letras)' : 'CN (Matrícula) – texto livre');
+      inpDoc.placeholder = docHint;
+
+      updateTermsBtnState();
+    }
+
+    inpName.addEventListener('input', sync);
+    selType.addEventListener('change', sync);
+    inpDoc.addEventListener('input', sync);
+
+    // init
+    sync();
+  });
+}
+
+function validateDependents(showInlineErrors = false){
+  const n = needDependentCount();
+  if (!PENDING_SELECTION?.isFamily || n <= 0) return true;
+
+  let ok = true;
+
+  for (let i=0; i<n; i++){
+    const d = DEPENDENTS[i] || {};
+    const name = String(d.name||'').trim();
+    const type = String(d.doc_type||'CPF').trim().toUpperCase();
+    const doc  = String(d.doc_value||'').trim();
+
+    let err = '';
+    if (name.length < 3) err = 'Informe o nome do dependente.';
+    else if (type === 'CPF' && !isCpfValidStrict(doc)) err = 'CPF inválido (precisa ter 11 dígitos).';
+    else if ((type === 'RG' || type === 'CN') && !isFreeDocValid(doc)) err = 'Informe o documento (mín. 3 caracteres).';
+    else if (!['CPF','RG','CN'].includes(type)) err = 'Tipo de documento inválido.';
+
+    if (err) ok = false;
+
+    if (showInlineErrors) {
+      const errEl = document.getElementById(`dep-err-${i}`);
+      if (errEl) {
+        errEl.style.display = err ? 'block' : 'none';
+        errEl.textContent = err;
+      }
+    }
+  }
+
+  return ok;
+}
+
 /* ===== Term state ===== */
-let PENDING_SELECTION = null; // { planId, planName, cycle, amount, qty_users }
+let PENDING_SELECTION = null; // { planId, planName, cycle, amount, qty_users, isFamily }
 let TERM_ACCEPTED_KEY = null; // "planId|cycle|qty"
 function selectionKey(planId, cycle, qty){ return String(planId) + '|' + String(cycle) + '|' + String(qty||1); }
 
@@ -610,10 +758,11 @@ function updateTermsBtnState(){
   const docVal  = (tsDoc.value || '').trim();
   const okDoc   = isCpfCnpjValid(docVal);
 
-  // feedback discreto via title (sem mudar visual do layout)
+  const okDeps  = validateDependents(false);
+
   tsDoc.title = okDoc ? '' : 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).';
 
-  termsAcceptBtn.disabled = !(okName && okDoc && okAgree && okSig);
+  termsAcceptBtn.disabled = !(okName && okDoc && okAgree && okSig && okDeps);
 }
 tsName.addEventListener('input', updateTermsBtnState);
 tsDoc.addEventListener('input', updateTermsBtnState);
@@ -640,11 +789,9 @@ btnContinue?.addEventListener('click', async ()=>{
 
   const cycle = (BILLING==='anual') ? 'yearly' : 'monthly';
 
-  // qty somente para familiar
   let qty = 1;
-  if (isFamilyPlan(p)) {
-    qty = QTY_BY_PLAN[String(p.id)] ?? planMinUsers(p);
-  }
+  const fam = isFamilyPlan(p);
+  if (fam) qty = QTY_BY_PLAN[String(p.id)] ?? planMinUsers(p);
 
   const amount = calcAmount(p, cycle, qty);
 
@@ -653,23 +800,25 @@ btnContinue?.addEventListener('click', async ()=>{
     planName: (p.name || p.id),
     cycle,
     amount,
-    qty_users: qty
+    qty_users: qty,
+    isFamily: fam
   };
 
   // reset do termo
   tsAgree.checked = false;
   clearSig();
 
-  // puxa defaults do perfil (se vierem do overview) quando estiver vazio
+  // dependentes
+  DEPENDENTS = [];
+  renderDependents();
+
   applyProfileDefaultsToTermsIfEmpty();
 
   await loadTermsText();
 
-  // no celular: abre recolhido por padrão; no desktop: aberto
   setTermsCollapsed(isMobileTerms());
 
   openModal(termsModal);
-
   setTimeout(()=>{ resizeSigCanvasToCss(); }, 50);
 });
 
@@ -698,6 +847,12 @@ async function submitTermsAcceptance(){
   if (!tsAgree.checked) { setTermsAlert('Marque que leu e aceitou o Termo e o Regulamento.'); return false; }
   if (!hasInk) { setTermsAlert('Assine no campo de assinatura.'); return false; }
 
+  // dependentes (se plano familiar)
+  if (!validateDependents(true)) {
+    setTermsAlert('Preencha corretamente os dados dos dependentes.');
+    return false;
+  }
+
   const sigDataUrl = sigCanvas.toDataURL('image/png');
 
   const payload = new URLSearchParams({
@@ -706,7 +861,8 @@ async function submitTermsAcceptance(){
     signed_name: name,
     signed_doc: doc,
     signature_png: sigDataUrl,
-    qty_users: String(PENDING_SELECTION.qty_users || 1)
+    qty_users: String(PENDING_SELECTION.qty_users || 1),
+    dependents_json: JSON.stringify(DEPENDENTS || [])
   });
 
   const resp = await fetchJsonOrText('/?r=api/terms/accept', {
@@ -750,10 +906,14 @@ termsAcceptBtn.addEventListener('click', async ()=>{
     ? `<br>Usuários: <strong>${escapeHtml(String(PENDING_SELECTION.qty_users))}</strong>.`
     : '';
 
+  const depLine = (PENDING_SELECTION.isFamily && (PENDING_SELECTION.qty_users||1) > 1)
+    ? `<br>Dependentes: <strong>${escapeHtml(String((PENDING_SELECTION.qty_users||1)-1))}</strong>.`
+    : '';
+
   planResumo.innerHTML = `
     Você selecionou <strong>${escapeHtml(PENDING_SELECTION.planName)}</strong> —
     cobrança <strong>${PENDING_SELECTION.cycle==='yearly'?'anual':'mensal'}</strong>.<br>
-    Valor: <strong>${moneyBR(PENDING_SELECTION.amount)}</strong>.${qtyLine}
+    Valor: <strong>${moneyBR(PENDING_SELECTION.amount)}</strong>.${qtyLine}${depLine}
   `;
   btnBoleto.disabled = false;
   openModal(planModal);
@@ -799,7 +959,8 @@ btnBoleto?.addEventListener('click', async ()=>{
         plan_id: PENDING_SELECTION.planId,
         cycle: PENDING_SELECTION.cycle,
         billingType: 'BOLETO',
-        qty_users: String(PENDING_SELECTION.qty_users || 1)
+        qty_users: String(PENDING_SELECTION.qty_users || 1),
+        dependents_json: JSON.stringify(DEPENDENTS || [])
       }),
       cache: 'no-store'
     });
@@ -991,10 +1152,6 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   color:#0f172a;
 }
 .plan-option:hover{ box-shadow:0 8px 24px rgba(15,23,42,.10); transform:translateY(-1px); }
-
-/* FIX CRÍTICO:
-   Antes estava .plan-option input {opacity:0} e isso escondia o qty-input do familiar.
-   Agora escondemos SOMENTE o rádio de seleção. */
 .plan-option > input.plan-radio{
   position:absolute;
   opacity:0;
@@ -1080,7 +1237,6 @@ window.addEventListener('focus', ()=> refreshOverview(true));
 }
 .qty-btn:active{ transform:translateY(1px); }
 
-/* número visível (pedido: "+ (número de indivíduos)") */
 .qty-value{
   display:flex;
   align-items:baseline;
@@ -1090,19 +1246,9 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   color:#0f172a;
   user-select:none;
 }
-.qty-number{
-  font-size:.95rem;
-  line-height:1;
-  min-width:16px;
-  text-align:center;
-}
-.qty-label{
-  font-size:.8rem;
-  font-weight:800;
-  color:#64748b;
-}
+.qty-number{ font-size:.95rem; line-height:1; min-width:16px; text-align:center; }
+.qty-label{ font-size:.8rem; font-weight:800; color:#64748b; }
 
-/* input continua existindo e visível, e também serve para digitar manualmente */
 .qty-input{
   width:72px;
   text-align:center;
@@ -1115,11 +1261,7 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   background:#fff;
 }
 
-/* hint */
-.family-hint{
-  margin-top:2px;
-  font-size:.82rem;
-}
+.family-hint{ margin-top:2px; font-size:.82rem; }
 
 /* Ações */
 .member-plans .form-actions{
@@ -1288,6 +1430,73 @@ window.addEventListener('focus', ()=> refreshOverview(true));
   outline:none;
 }
 
+/* Dependentes */
+.deps-wrap{
+  margin-top:10px;
+  padding:10px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.45);
+  background:#f8fafc;
+}
+.deps-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:8px;
+}
+.deps-title{
+  font-weight:900;
+  color:#0f172a;
+  font-size:.95rem;
+}
+.deps-sub{ font-size:.82rem; }
+.deps-list{ display:grid; gap:10px; }
+.dep-item{
+  background:#ffffff;
+  border:1px solid rgba(148,163,184,.35);
+  border-radius:14px;
+  padding:10px;
+}
+.dep-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:8px;
+}
+.dep-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:5px 10px;
+  border-radius:999px;
+  font-weight:900;
+  font-size:.78rem;
+  background:#eef2ff;
+  border:1px solid #c7d2fe;
+  color:#3730a3;
+}
+.dep-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+}
+.dep-docrow{
+  display:grid;
+  grid-template-columns: 120px 1fr;
+  gap:8px;
+}
+.dep-err{
+  margin-top:8px;
+  color:#b91c1c;
+  font-weight:800;
+  font-size:.82rem;
+}
+.deps-hint{
+  margin-top:8px;
+  font-size:.78rem;
+}
+
 /* Mobile */
 @media (max-width:720px){
   .member-plans .current-plan{ flex-direction:column; align-items:flex-start; gap:8px; }
@@ -1304,5 +1513,8 @@ window.addEventListener('focus', ()=> refreshOverview(true));
 
   .qty-btn{ width:38px; height:36px; }
   .qty-input{ width:84px; }
+
+  .dep-grid{ grid-template-columns: 1fr; }
+  .dep-docrow{ grid-template-columns: 1fr; }
 }
 </style>

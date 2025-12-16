@@ -521,7 +521,8 @@ $bareRoutes = [
   'site/home',
   'site/plans', 
   'site/parceiros',
-  'site/termo_aceite',
+  'site/termo_aceite',  
+  'site/card',
 
 ];
 

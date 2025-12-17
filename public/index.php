@@ -39,13 +39,17 @@ $aliases = [
   'sobre'      => 'site/about',  // quando criar app/views/site/about.php
   'about'      => 'site/about',
   'termos'      => 'site/termos',
+  'termos-pdfs'   => 'site/terms-pdfs',   // <— novo alias curto
+  'terms-pdfs'    => 'site/terms-pdfs',   // <— outro alias curto
+
 
   // versões com "site/" (compat)
   'site/planos'    => 'site/plans',
   'site/partners'  => 'site/parceiros',
   'site/contact'   => 'site/contato',
   'site/sobre'     => 'site/about',
-  'site/termos'     => 'site/termos',
+  'site/termos'     => 'site/termos',  
+  'site/terms-pdfs' => 'site/terms-pdfs', // <— idempotente
 ];
 
 if (isset($aliases[$route])) {
@@ -523,6 +527,8 @@ $bareRoutes = [
   'site/parceiros',
   'site/termo_aceite',  
   'site/card',
+  'site/terms-pdfs'
+
 
 ];
 

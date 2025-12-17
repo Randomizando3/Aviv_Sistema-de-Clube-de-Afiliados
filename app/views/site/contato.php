@@ -251,7 +251,7 @@
           <article class="card">
             <h3 style="display:flex;align-items:center;gap:8px">✉️ E-mail</h3>
             <p class="section__desc">Respostas em até 1 dia útil.</p>
-            <a class="btn btn--blueGrad" href="mailto:contato@avivmais.com">contato@avivmais.com</a>
+            <a class="btn btn--blueGrad" href="mailto:contato@avivmais.com.br">contato@avivmais.com.br</a>
           </article>
 
           <article class="card">
@@ -302,7 +302,7 @@
       <div class="footer__contact">
         <strong>Atendimento</strong>
         <a href="/?r=site/contato" rel="noopener">WhatsApp</a>
-        <a href="mailto:contato@avivmais.com">contato@avivmais.com</a>
+        <a href="mailto:contato@avivmais.com.br">contato@avivmais.com.br</a>
         <a href="/?r=site/contato">Políticas &amp; FAQ</a>
       </div>
     </div>

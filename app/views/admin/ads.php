@@ -70,7 +70,11 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
           <div class="list-tools">
             <input id="plan-q" class="field" placeholder="Buscar plano pelo nome..." />
           </div>
-          <div id="plans" class="table-wrap slim" aria-live="polite"></div>
+
+          <!-- Desktop -->
+          <div id="plans" class="table-wrap slim only-desktop" aria-live="polite"></div>
+          <!-- Mobile -->
+          <div id="plans-cards" class="plans-cards only-mobile" aria-live="polite" style="display:none"></div>
         </section>
       </div>
     </div>
@@ -89,7 +93,7 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
             </button>
             <div class="combo-menu">
               <div class="combo-list">
-                <label class="combo-opt"><input type="radio" name="campst" value=""> <span>Todos</span></label>
+                <label class="combo-opt"><input type="radio" name="campst" value="" checked> <span>Todos</span></label>
                 <label class="combo-opt"><input type="radio" name="campst" value="active"> <span>Ativa</span></label>
                 <label class="combo-opt"><input type="radio" name="campst" value="pending_payment"> <span>Pendente</span></label>
                 <label class="combo-opt"><input type="radio" name="campst" value="exhausted"> <span>Exaurida</span></label>
@@ -108,7 +112,10 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
     <!-- ===== Pedidos ====== -->
     <div class="glass-card" style="margin-top:12px">
       <h2 class="sect-sub">Pedidos de Campanha</h2>
-      <div id="orders" class="table-wrap"></div>
+      <!-- Desktop -->
+      <div id="orders" class="table-wrap only-desktop"></div>
+      <!-- Mobile -->
+      <div id="orders-cards" class="orders-cards only-mobile" style="display:none"></div>
     </div>
 
     <!-- Rodapé admin -->
@@ -121,16 +128,115 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
 
 <script>
 (function(){
+  /* =========================
+     FIX: Menu do Header/Admin (abre/fecha igual ao site)
+     - Defensivo: não depende de markup exato
+  ========================= */
+  (function initAdminMenuToggle(){
+    const toggle =
+      document.querySelector(
+        [
+          '[data-menu-toggle]',
+          '[data-nav-toggle]',
+          '#menu-toggle',
+          '#nav-toggle',
+          '#btn-menu',
+          '.menu-toggle',
+          '.nav-toggle',
+          '.hamburger',
+          'button[aria-controls="site-menu"]',
+          'button[aria-controls="site-nav"]'
+        ].join(',')
+      );
+
+    const menu =
+      document.getElementById('site-menu') ||
+      document.getElementById('site-nav')  ||
+      document.querySelector(
+        [
+          '[data-menu]',
+          '[data-nav]',
+          '.site-menu',
+          '.site-nav',
+          '.nav-menu',
+          '.header-menu',
+          '.nav-links',
+          '.mobile-menu',
+          '.mobile-nav'
+        ].join(',')
+      );
+
+    if (!toggle || !menu) return;
+
+    const body = document.body;
+
+    function isOpen(){
+      return (
+        menu.classList.contains('is-open') ||
+        menu.classList.contains('open') ||
+        menu.hasAttribute('data-open') ||
+        body.classList.contains('menu-open')
+      );
+    }
+    function open(){
+      menu.classList.add('is-open','open');
+      menu.setAttribute('data-open','');
+      body.classList.add('menu-open');
+      toggle.classList.add('is-open','open');
+      toggle.setAttribute('aria-expanded','true');
+    }
+    function close(){
+      menu.classList.remove('is-open','open');
+      menu.removeAttribute('data-open');
+      body.classList.remove('menu-open');
+      toggle.classList.remove('is-open','open');
+      toggle.setAttribute('aria-expanded','false');
+    }
+    function toggleMenu(){ isOpen() ? close() : open(); }
+
+    toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+    toggle.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMenu();
+    });
+
+    document.addEventListener('click', (e)=>{
+      if (!isOpen()) return;
+      if (menu.contains(e.target) || toggle.contains(e.target)) return;
+      close();
+    });
+
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'Escape') close();
+    });
+
+    menu.addEventListener('click', (e)=>{
+      const a = e.target.closest('a');
+      if (!a) return;
+      const href = (a.getAttribute('href') || '').trim();
+      if (href && href !== '#') close();
+    });
+
+    window.addEventListener('resize', ()=>{
+      if (window.innerWidth > 980) close();
+    });
+  })();
+
   const $ = s => document.querySelector(s);
 
   function flash(type, msg, ms=6000){
     const el = document.createElement('div');
     el.className = 'flash ' + (type==='ok' ? 'flash--ok' : type==='warn' ? 'flash--warn' : 'flash--err');
-    el.innerHTML = `<strong>${type==='ok'?'Sucesso': type==='warn'?'Atenção':'Erro'}:</strong> ${msg}`;
+    const title = (type==='ok'?'Sucesso': type==='warn'?'Atenção':'Erro');
+    el.innerHTML = `<strong>${title}:</strong> ${escHtml(msg)}`;
     document.getElementById('flash').appendChild(el);
     if (ms>0) setTimeout(()=> el.remove(), ms);
   }
-  const esc = s => String(s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  const escHtml = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escAttr = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 
   function badge(st){
     const map = {
@@ -143,60 +249,149 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
       'refunded':{t:'Estornada',cls:'bdg--muted'}
     };
     const it = map[st] || {t:(st||'-'), cls:'bdg--muted'};
-    return `<span class="bdg ${it.cls}">${it.t}</span>`;
+    return `<span class="bdg ${it.cls}">${escHtml(it.t)}</span>`;
   }
+
+  function isMobile(){ return window.matchMedia('(max-width: 720px)').matches; }
+  function debounce(fn, ms=250){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+  /* ===== Sombras nas tabelas ===== */
+  function updateTableShadows(){
+    document.querySelectorAll('.table-wrap').forEach(tw => {
+      const L = tw.scrollLeft;
+      const W = tw.scrollWidth;
+      const C = tw.clientWidth;
+      tw.classList.toggle('shadow-left',  L > 2);
+      tw.classList.toggle('shadow-right', L + C < W - 2);
+    });
+  }
+  document.addEventListener('scroll', e => {
+    if (e.target.classList && e.target.classList.contains('table-wrap')) updateTableShadows();
+  }, true);
+  window.addEventListener('resize', updateTableShadows, {passive:true});
 
   // ====== PLANOS ======
   let PLAN_ROWS = [];
+  let PLAN_ROWS_FILTERED = [];
+
   const planFilter = () => {
     const q = ($('#plan-q').value||'').toLowerCase();
-    renderPlansTable(PLAN_ROWS.filter(p => !q || (String(p.name||'').toLowerCase().includes(q))));
+    PLAN_ROWS_FILTERED = PLAN_ROWS.filter(p => !q || String(p.name||'').toLowerCase().includes(q));
+    renderPlans(PLAN_ROWS_FILTERED);
   };
+
   async function loadPlans(){
     const showInactive = $('#toggle-inactive').checked;
     const url = showInactive ? '/?r=api/admin/ads/plans/list' : '/?r=api/partner/ads/plans';
     const res = await fetch(url);
-    let j; try { j = await res.json(); } catch(e){ $('#plans').innerHTML='<p class="muted">Erro ao carregar.</p>'; return; }
-    if(!j.ok && !Array.isArray(j)){ $('#plans').innerHTML='<p class="muted">Falha ao carregar planos.</p>'; return; }
+    let j;
+    try { j = await res.json(); }
+    catch(e){
+      $('#plans').innerHTML = '<p class="muted">Erro ao carregar.</p>';
+      $('#plans-cards').innerHTML = '<p class="muted">Erro ao carregar.</p>';
+      return;
+    }
+
+    if(!j.ok && !Array.isArray(j)){
+      $('#plans').innerHTML = '<p class="muted">Falha ao carregar planos.</p>';
+      $('#plans-cards').innerHTML = '<p class="muted">Falha ao carregar planos.</p>';
+      return;
+    }
+
     PLAN_ROWS = j.data || j || [];
     planFilter();
     updateTableShadows();
   }
-  function renderPlansTable(rows){
-    if(!rows.length){ $('#plans').innerHTML = '<p class="muted">Nenhum plano encontrado.</p>'; return; }
+
+  function renderPlans(rows){
+    const boxTbl = $('#plans');
+    const boxCards = $('#plans-cards');
+
+    if (isMobile()){
+      boxTbl.style.display = 'none';
+      boxCards.style.display = 'grid';
+
+      if(!rows.length){
+        boxCards.innerHTML = '<p class="muted">Nenhum plano encontrado.</p>';
+        return;
+      }
+
+      boxCards.innerHTML = rows.map(p => `
+        <article class="mini-card" role="listitem" aria-label="Plano #${escHtml(p.id)}">
+          <header class="mini-head">
+            <strong class="mini-title">${escHtml(p.name || '-')}</strong>
+            <span class="mini-id">#${escHtml(p.id)}</span>
+          </header>
+          <div class="mini-grid">
+            <div class="kpi"><span class="lbl">Views</span><span class="val">${Number(p.view_quota||0).toLocaleString('pt-BR')}</span></div>
+            <div class="kpi"><span class="lbl">Preço</span><span class="val">R$ ${Number(p.price||0).toFixed(2)}</span></div>
+            <div class="kpi"><span class="lbl">Status</span><span class="val">${escHtml(p.status||'-')}</span></div>
+            <div class="kpi"><span class="lbl">Ordem</span><span class="val">${escHtml(p.sort_order||0)}</span></div>
+          </div>
+          <footer class="mini-actions">
+            <button class="btn btn-sm" data-edit='${escAttr(JSON.stringify(p))}'>Editar</button>
+          </footer>
+        </article>
+      `).join('');
+
+      boxCards.querySelectorAll('[data-edit]').forEach(btn=>{
+        btn.onclick = ()=>{
+          const p = JSON.parse(btn.getAttribute('data-edit'));
+          fillPlanForm(p);
+        };
+      });
+
+      return;
+    }
+
+    // Desktop table
+    boxTbl.style.display = 'block';
+    boxCards.style.display = 'none';
+
+    if(!rows.length){
+      boxTbl.innerHTML = '<p class="muted">Nenhum plano encontrado.</p>';
+      return;
+    }
+
     let html = `<table class="tbl"><thead><tr>
       <th>ID</th><th>Nome</th><th>Views</th><th>Preço</th><th>Status</th><th>Ordem</th><th>Ações</th>
     </tr></thead><tbody>`;
     rows.forEach(p=>{
       html += `<tr>
-        <td>${p.id}</td>
-        <td>${esc(p.name)}</td>
+        <td>${escHtml(p.id)}</td>
+        <td>${escHtml(p.name)}</td>
         <td>${Number(p.view_quota||0).toLocaleString('pt-BR')}</td>
         <td>R$ ${Number(p.price||0).toFixed(2)}</td>
-        <td>${esc(p.status||'-')}</td>
-        <td>${p.sort_order||0}</td>
-        <td><button class="btn btn-sm" data-edit='${esc(JSON.stringify(p)).replace(/"/g,'&quot;')}'>Editar</button></td>
+        <td>${escHtml(p.status||'-')}</td>
+        <td>${escHtml(p.sort_order||0)}</td>
+        <td><button class="btn btn-sm" data-edit='${escAttr(JSON.stringify(p))}'>Editar</button></td>
       </tr>`;
     });
     html += `</tbody></table>`;
-    $('#plans').innerHTML = html;
+    boxTbl.innerHTML = html;
 
-    $('#plans').querySelectorAll('[data-edit]').forEach(btn=>{
+    boxTbl.querySelectorAll('[data-edit]').forEach(btn=>{
       btn.onclick = ()=>{
         const p = JSON.parse(btn.getAttribute('data-edit'));
-        const f = $('#plan-form');
-        f.id.value           = p.id;
-        f.name.value         = p.name||'';
-        f.view_quota.value   = p.view_quota||'';
-        f.price.value        = p.price||'';
-        f.sort_order.value   = p.sort_order||0;
-        f.status.value       = p.status||'active';
-        f.description.value  = p.description||'';
-        window.scrollTo({top: f.getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
+        fillPlanForm(p);
       };
     });
+
     updateTableShadows();
   }
+
+  function fillPlanForm(p){
+    const f = $('#plan-form');
+    f.id.value           = p.id ?? '';
+    f.name.value         = p.name ?? '';
+    f.view_quota.value   = p.view_quota ?? '';
+    f.price.value        = p.price ?? '';
+    f.sort_order.value   = p.sort_order ?? 0;
+    f.status.value       = p.status ?? 'active';
+    f.description.value  = p.description ?? '';
+    window.scrollTo({top: f.getBoundingClientRect().top + window.scrollY - 80, behavior:'smooth'});
+  }
+
   $('#plan-save').onclick = async ()=>{
     const f  = $('#plan-form');
     const fd = new FormData(f);
@@ -227,29 +422,30 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
       <article class="camp-card admin" role="listitem">
         <header class="camp-head">
           <div class="camp-titles">
-            <h3 class="c-title">${esc(c.title||'-')}</h3>
+            <h3 class="c-title">${escHtml(c.title||'-')}</h3>
             <div class="c-meta">
               ${badge(c.status||'inactive')}
-              ${c.target_url ? `<a class="chip-link" href="${esc(c.target_url)}" target="_blank" rel="noopener">Abrir</a>` : ''}
+              ${c.target_url ? `<a class="chip-link" href="${escAttr(c.target_url)}" target="_blank" rel="noopener">Abrir</a>` : ''}
             </div>
           </div>
           <div class="camp-who">
-            <div class="who-row"><span class="who-lbl">Parceiro:</span> <span class="who-val">${esc(c.business_name||'-')}</span></div>
-            <div class="who-row"><span class="who-lbl">Usuário:</span> <span class="who-val">${esc(c.user_name||'-')}</span></div>
-            <div class="who-row"><span class="who-lbl">Criado:</span> <span class="who-val">${esc((c.created_at||'').replace('T',' ').replace('Z',''))}</span></div>
+            <div class="who-row"><span class="who-lbl">Parceiro:</span> <span class="who-val">${escHtml(c.business_name||'-')}</span></div>
+            <div class="who-row"><span class="who-lbl">Usuário:</span> <span class="who-val">${escHtml(c.user_name||'-')}</span></div>
+            <div class="who-row"><span class="who-lbl">Criado:</span> <span class="who-val">${escHtml((c.created_at||'').replace('T',' ').replace('Z',''))}</span></div>
           </div>
         </header>
         <section class="gal">
           ${imgs.map(s => s.url
-            ? `<a class="tile" href="${esc(s.url)}" target="_blank" rel="noopener">
-                 <img src="${esc(s.url)}" alt="${esc(s.label)}"><span class="gm-tag">${esc(s.label)}</span>
+            ? `<a class="tile" href="${escAttr(s.url)}" target="_blank" rel="noopener">
+                 <img src="${escAttr(s.url)}" alt="${escAttr(s.label)}"><span class="gm-tag">${escHtml(s.label)}</span>
                </a>`
-            : `<div class="tile tile--ph"><span class="gm-tag">${esc(s.label)}</span><span class="ph">sem imagem</span></div>`
+            : `<div class="tile tile--ph"><span class="gm-tag">${escHtml(s.label)}</span><span class="ph">sem imagem</span></div>`
           ).join('')}
         </section>
       </article>
     `;
   }
+
   function renderCamps(){
     const q = ($('#camp-q').value||'').toLowerCase();
     const st = $('#camp-status').value;
@@ -260,9 +456,10 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
       return okQ && okS;
     });
     const box = $('#camps');
-    if(!arr.length){ box.innerHTML = '<p class="muted">Nenhuma campanha encontrado.</p>'; return; }
+    if(!arr.length){ box.innerHTML = '<p class="muted">Nenhuma campanha encontrada.</p>'; return; }
     box.innerHTML = arr.map(renderCampCard).join('');
   }
+
   async function loadCampaigns(){
     const r = await fetch('/?r=api/admin/ads/campaigns');
     let j; try { j = await r.json(); } catch(e){ $('#camps').innerHTML='<p class="muted">Erro ao carregar.</p>'; return; }
@@ -271,13 +468,13 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
     renderCamps();
   }
 
-  // combo de status
+  // combo de status (campanhas)
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('#camp-status-combo .combo-btn');
     if (btn){
       const combo = btn.closest('.combo');
       const open = combo.hasAttribute('data-open');
-      document.querySelectorAll('.combo[data-open]')?.forEach(c=> c.removeAttribute('data-open'));
+      document.querySelectorAll('.combo[data-open]').forEach(c=> c.removeAttribute('data-open'));
       if (!open){ combo.setAttribute('data-open',''); btn.setAttribute('aria-expanded','true'); }
       else { combo.removeAttribute('data-open'); btn.setAttribute('aria-expanded','false'); }
       return;
@@ -290,24 +487,80 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
       $('#camp-status').value = val;
       const label = opt.querySelector('span')?.textContent || 'Todos';
       document.querySelector('#camp-status-combo .combo-label').textContent = 'Status: ' + label;
-      const combo = opt.closest('.combo'); combo.removeAttribute('data-open'); combo.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
+      const combo = opt.closest('.combo');
+      combo.removeAttribute('data-open');
+      combo.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
       renderCamps();
       return;
     }
     if (!e.target.closest('.combo')) {
-      document.querySelectorAll('.combo[data-open]')?.forEach(c=> c.removeAttribute('data-open'));
-      document.querySelectorAll('.combo .combo-btn')?.forEach(b=> b.setAttribute('aria-expanded','false'));
+      document.querySelectorAll('.combo[data-open]').forEach(c=> c.removeAttribute('data-open'));
+      document.querySelectorAll('.combo .combo-btn').forEach(b=> b.setAttribute('aria-expanded','false'));
     }
   });
   $('#camp-q').addEventListener('input', renderCamps);
 
   // ====== PEDIDOS ======
-  async function loadOrders(){
-    const r = await fetch('/?r=api/admin/ads/orders');
-    let j; try { j = await r.json(); } catch(e){ $('#orders').innerHTML='<p class="muted">Erro ao carregar.</p>'; return; }
-    if(!j.ok){ $('#orders').innerHTML='<p class="muted">Falha ao carregar pedidos.</p>'; return; }
-    const rows = j.data || [];
-    if(!rows.length){ $('#orders').innerHTML = '<p class="muted">Nenhum pedido até o momento.</p>'; return; }
+  let ORDER_ROWS = [];
+
+  function renderOrders(rows){
+    const tblBox = $('#orders');
+    const cardBox = $('#orders-cards');
+
+    if (isMobile()){
+      tblBox.style.display = 'none';
+      cardBox.style.display = 'grid';
+
+      if(!rows.length){
+        cardBox.innerHTML = '<p class="muted">Nenhum pedido até o momento.</p>';
+        return;
+      }
+
+      cardBox.innerHTML = rows.map(o => {
+        const canConfirm = (o.status === 'pending_payment');
+        return `
+          <article class="mini-card" role="listitem" aria-label="Pedido #${escHtml(o.id)}">
+            <header class="mini-head">
+              <strong class="mini-title">${escHtml(o.title || 'Campanha')}</strong>
+              <span class="mini-id">#${escHtml(o.id)}</span>
+            </header>
+
+            <div class="mini-grid">
+              <div class="kpi"><span class="lbl">Parceiro</span><span class="val">${escHtml(o.business_name||'-')}</span></div>
+              <div class="kpi"><span class="lbl">Plano</span><span class="val">${escHtml(o.plan_name||'-')}</span></div>
+              <div class="kpi"><span class="lbl">Status</span><span class="val">${badge(o.status)}</span></div>
+              <div class="kpi"><span class="lbl">Quota</span><span class="val">${escHtml(o.quota_total)}</span></div>
+              <div class="kpi"><span class="lbl">Usadas</span><span class="val">${escHtml(o.quota_used)}</span></div>
+              <div class="kpi"><span class="lbl">Valor</span><span class="val">R$ ${Number(o.amount||0).toFixed(2)}</span></div>
+              <div class="kpi"><span class="lbl">Criado</span><span class="val">${escHtml((o.created_at||'').replace('T',' ').replace('Z',''))}</span></div>
+            </div>
+
+            <footer class="mini-actions">
+              ${
+                canConfirm
+                  ? `<button class="btn btn-sm" data-confirm="${escAttr(o.id)}">Confirmar pagamento</button>`
+                  : `<span class="muted">—</span>`
+              }
+            </footer>
+          </article>
+        `;
+      }).join('');
+
+      cardBox.querySelectorAll('[data-confirm]').forEach(btn=>{
+        btn.onclick = ()=> confirmOrder(btn.dataset.confirm);
+      });
+
+      return;
+    }
+
+    // Desktop table
+    tblBox.style.display = 'block';
+    cardBox.style.display = 'none';
+
+    if(!rows.length){
+      tblBox.innerHTML = '<p class="muted">Nenhum pedido até o momento.</p>';
+      return;
+    }
 
     let html = `<table class="tbl"><thead><tr>
       <th>ID</th><th>Parceiro</th><th>Plano</th><th>Título campanha</th><th>Status</th>
@@ -315,54 +568,56 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
     </tr></thead><tbody>`;
     rows.forEach(o=>{
       html += `<tr>
-        <td>${o.id}</td>
-        <td>${esc(o.business_name||'-')}</td>
-        <td>${esc(o.plan_name)}</td>
-        <td>${esc(o.title)}</td>
+        <td>${escHtml(o.id)}</td>
+        <td>${escHtml(o.business_name||'-')}</td>
+        <td>${escHtml(o.plan_name||'-')}</td>
+        <td>${escHtml(o.title||'-')}</td>
         <td>${badge(o.status)}</td>
-        <td>${o.quota_total}</td>
-        <td>${o.quota_used}</td>
+        <td>${escHtml(o.quota_total)}</td>
+        <td>${escHtml(o.quota_used)}</td>
         <td>R$ ${Number(o.amount||0).toFixed(2)}</td>
-        <td>${(o.created_at||'').replace('T',' ').replace('Z','')}</td>
+        <td>${escHtml((o.created_at||'').replace('T',' ').replace('Z',''))}</td>
         <td>${
           o.status==='pending_payment'
-            ? `<button class="btn btn-sm" data-confirm="${o.id}">Confirmar pagamento</button>`
+            ? `<button class="btn btn-sm" data-confirm="${escAttr(o.id)}">Confirmar pagamento</button>`
             : '—'
         }</td>
       </tr>`;
     });
     html += `</tbody></table>`;
-    $('#orders').innerHTML = html;
+    tblBox.innerHTML = html;
 
-    $('#orders').querySelectorAll('[data-confirm]').forEach(btn=>{
-      btn.onclick = async ()=>{
-        const fd = new FormData(); fd.set('id', btn.dataset.confirm);
-        const r = await fetch('/?r=api/admin/ads/orders/confirm', {method:'POST', body:fd});
-        let j; try { j = await r.json(); } catch(e){ return flash('err','Erro ao confirmar'); }
-        if(!j.ok){ return flash('err', j.error||'Falha ao confirmar'); }
-        flash('ok','Pagamento confirmado e campanha ativada.');
-        loadOrders(); loadCampaigns();
-      };
+    tblBox.querySelectorAll('[data-confirm]').forEach(btn=>{
+      btn.onclick = ()=> confirmOrder(btn.dataset.confirm);
     });
+
     updateTableShadows();
   }
 
-  /* ===== Sombras nas tabelas ===== */
-  function updateTableShadows(){
-    document.querySelectorAll('.table-wrap').forEach(tw => {
-      const L = tw.scrollLeft;
-      const W = tw.scrollWidth;
-      const C = tw.clientWidth;
-      tw.classList.toggle('shadow-left',  L > 2);
-      tw.classList.toggle('shadow-right', L + C < W - 2);
-    });
+  async function confirmOrder(id){
+    const fd = new FormData(); fd.set('id', id);
+    const r = await fetch('/?r=api/admin/ads/orders/confirm', {method:'POST', body:fd});
+    let j; try { j = await r.json(); } catch(e){ return flash('err','Erro ao confirmar'); }
+    if(!j.ok){ return flash('err', j.error||'Falha ao confirmar'); }
+    flash('ok','Pagamento confirmado e campanha ativada.');
+    loadOrders();
+    loadCampaigns();
   }
-  document.addEventListener('scroll', e => {
-    if (e.target.classList && e.target.classList.contains('table-wrap')) {
-      updateTableShadows();
-    }
-  }, true);
-  window.addEventListener('resize', updateTableShadows, {passive:true});
+
+  async function loadOrders(){
+    const r = await fetch('/?r=api/admin/ads/orders');
+    let j; try { j = await r.json(); } catch(e){ $('#orders').innerHTML='<p class="muted">Erro ao carregar.</p>'; $('#orders-cards').innerHTML='<p class="muted">Erro ao carregar.</p>'; return; }
+    if(!j.ok){ $('#orders').innerHTML='<p class="muted">Falha ao carregar pedidos.</p>'; $('#orders-cards').innerHTML='<p class="muted">Falha ao carregar pedidos.</p>'; return; }
+    ORDER_ROWS = j.data || [];
+    renderOrders(ORDER_ROWS);
+    updateTableShadows();
+  }
+
+  // Re-render responsivo (tabela <-> cards) sem refetch
+  window.addEventListener('resize', debounce(()=>{
+    renderPlans(PLAN_ROWS_FILTERED.length ? PLAN_ROWS_FILTERED : PLAN_ROWS);
+    renderOrders(ORDER_ROWS);
+  }, 200), {passive:true});
 
   // init
   loadPlans();
@@ -387,7 +642,14 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
   padding-inline:0;
 }
 
-/* ===== base visual clean (igual planos-page) ===== */
+/* não cortar menus/dropdowns do header */
+.container.admin,
+.container.admin .admin-main,
+.ads-page .glass-card{
+  overflow:visible;
+}
+
+/* ===== base visual clean (igual demais pages) ===== */
 .glass-card{
   background:rgba(255,255,255,.92);
   border:1px solid rgba(15,23,42,.06);
@@ -410,6 +672,14 @@ if (!$u || ($u['role'] ?? 'member') !== 'admin') {
   color:var(--muted,#6b7280);
   opacity:1;
   font-size:.9rem;
+}
+
+/* responsivo: containers */
+.only-mobile{ display:none; }
+.only-desktop{ display:block; }
+@media (max-width: 720px){
+  .only-mobile{ display:block !important; }
+  .only-desktop{ display:none !important; }
 }
 
 /* ===== formulário de planos ===== */
@@ -507,7 +777,7 @@ textarea.field{ min-height:120px; }
   #camp-status-combo{ flex:1 1 100%; min-width:0; }
 }
 
-/* ===== table-wrap + sombras (igual planos) ===== */
+/* ===== table-wrap + sombras ===== */
 .table-wrap{
   position:relative;
   overflow:auto;
@@ -565,6 +835,8 @@ textarea.field{ min-height:120px; }
   padding:10px 8px;
   vertical-align:middle;
   white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
   border-bottom:1px solid #eef2f7;
   font-size:.88rem;
 }
@@ -597,26 +869,27 @@ textarea.field{ min-height:120px; }
   font-size:.75rem;
   line-height:1;
   font-weight:700;
+  border:1px solid transparent;
 }
 .bdg--ok{
   background:#e6f7ec;
   color:#0f7a2f;
-  border:1px solid #b8ebc6;
+  border-color:#b8ebc6;
 }
 .bdg--warn{
   background:#fff7e6;
   color:#8a5a00;
-  border:1px solid #ffe1a8;
+  border-color:#ffe1a8;
 }
 .bdg--err{
   background:#ffecec;
   color:#a10000;
-  border:1px solid #ffc9c9;
+  border-color:#ffc9c9;
 }
 .bdg--muted{
   background:#eef3f8;
   color:#3b556e;
-  border:1px solid #d6e0ea;
+  border-color:#d6e0ea;
 }
 
 /* ===== cards de campanhas (estilo claro) ===== */
@@ -642,6 +915,10 @@ textarea.field{ min-height:120px; }
   gap:12px;
   align-items:start;
 }
+@media (max-width:720px){
+  .camp-head{ grid-template-columns:1fr; }
+  .camp-who{ min-width:0; }
+}
 .camp-titles .c-title{
   margin:0 0 4px;
   font-weight:800;
@@ -666,11 +943,14 @@ textarea.field{ min-height:120px; }
 .who-lbl{ opacity:.8; }
 .who-val{ font-weight:600; }
 
-/* galeria de imagens */
+/* galeria de imagens: responsiva (evita encavalar no mobile) */
 .gal{
   display:grid;
   grid-template-columns:repeat(5,minmax(0,1fr));
   gap:8px;
+}
+@media (max-width:720px){
+  .gal{ grid-template-columns:repeat(auto-fit,minmax(72px,1fr)); }
 }
 .tile{
   position:relative;
@@ -686,6 +966,9 @@ textarea.field{ min-height:120px; }
   object-fit:cover;
   display:block;
 }
+@media (max-width:720px){
+  .tile img{ height:76px; }
+}
 .tile--ph{
   display:flex;
   align-items:center;
@@ -693,6 +976,9 @@ textarea.field{ min-height:120px; }
   height:86px;
   color:#6b7280;
   font-size:.8rem;
+}
+@media (max-width:720px){
+  .tile--ph{ height:76px; }
 }
 .gm-tag{
   position:absolute;
@@ -705,7 +991,7 @@ textarea.field{ min-height:120px; }
   font-size:.7rem;
 }
 
-/* ===== combo espesso (adaptado para tema claro) ===== */
+/* ===== combo espesso (tema claro) ===== */
 .combo{ position:relative; }
 .combo--thick .combo-btn{
   width:100%;
@@ -759,9 +1045,7 @@ textarea.field{ min-height:120px; }
   cursor:pointer;
   font-size:.85rem;
 }
-.combo-opt:hover{
-  background:#eef2ff;
-}
+.combo-opt:hover{ background:#eef2ff; }
 .combo-opt input{ accent-color:#2563eb; }
 
 /* ===== flash messages ===== */
@@ -801,6 +1085,64 @@ textarea.field{ min-height:120px; }
   background:#ffffff;
 }
 
+/* ===== Mini cards (mobile: planos + pedidos) ===== */
+.plans-cards,
+.orders-cards{
+  display:grid;
+  gap:10px;
+}
+.mini-card{
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#ffffff;
+  padding:12px;
+  box-shadow:0 10px 26px rgba(15,23,42,.06);
+}
+.mini-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+.mini-title{
+  font-weight:800;
+  color:#111322;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.mini-id{
+  font-weight:700;
+  color:#4b5563;
+  white-space:nowrap;
+}
+.mini-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+@media (max-width:480px){
+  .mini-grid{ grid-template-columns:1fr; }
+}
+.kpi{ display:grid; gap:2px; min-width:0; }
+.kpi .lbl{ font-size:.78rem; color:#6b7280; }
+.kpi .val{
+  font-weight:600;
+  color:#111322;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.mini-actions{
+  margin-top:10px;
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
 /* ===== rodapé admin ===== */
 .admin-footer{
   margin-top:16px;
@@ -812,9 +1154,7 @@ textarea.field{ min-height:120px; }
   gap:12px;
   font-size:.78rem;
 }
-.admin-footer .muted{
-  margin:0;
-}
+.admin-footer .muted{ margin:0; }
 .admin-footer-tag{
   font-weight:600;
   color:#4b5563;

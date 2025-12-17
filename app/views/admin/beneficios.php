@@ -109,12 +109,118 @@
 </section>
 
 <script>
+/* =========================
+   FIX: Menu do Header/Admin (abre/fecha)
+   - Funciona mesmo se o header estiver fora deste arquivo
+   - Fecha fora / ESC / clique em link / resize
+========================= */
+(function initAdminMenuToggle(){
+  const toggle =
+    document.querySelector(
+      [
+        '[data-menu-toggle]',
+        '[data-nav-toggle]',
+        '#menu-toggle',
+        '#nav-toggle',
+        '#btn-menu',
+        '.menu-toggle',
+        '.nav-toggle',
+        '.hamburger',
+        'button[aria-controls="site-menu"]',
+        'button[aria-controls="site-nav"]'
+      ].join(',')
+    );
+
+  const menu =
+    document.getElementById('site-menu') ||
+    document.getElementById('site-nav')  ||
+    document.querySelector(
+      [
+        '[data-menu]',
+        '[data-nav]',
+        '.site-menu',
+        '.site-nav',
+        '.nav-menu',
+        '.header-menu',
+        '.nav-links',
+        '.mobile-menu',
+        '.mobile-nav'
+      ].join(',')
+    );
+
+  if (!toggle || !menu) return;
+
+  const body = document.body;
+
+  function isOpen(){
+    return (
+      menu.classList.contains('is-open') ||
+      menu.classList.contains('open') ||
+      menu.hasAttribute('data-open') ||
+      body.classList.contains('menu-open')
+    );
+  }
+
+  function open(){
+    menu.classList.add('is-open','open');
+    menu.setAttribute('data-open','');
+    body.classList.add('menu-open');
+    toggle.classList.add('is-open','open');
+    toggle.setAttribute('aria-expanded','true');
+  }
+
+  function close(){
+    menu.classList.remove('is-open','open');
+    menu.removeAttribute('data-open');
+    body.classList.remove('menu-open');
+    toggle.classList.remove('is-open','open');
+    toggle.setAttribute('aria-expanded','false');
+  }
+
+  function toggleMenu(){
+    isOpen() ? close() : open();
+  }
+
+  toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+  toggle.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') close();
+  });
+
+  menu.addEventListener('click', (e)=>{
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = (a.getAttribute('href') || '').trim();
+    if (href && href !== '#') close();
+  });
+
+  window.addEventListener('resize', ()=>{
+    if (window.innerWidth > 980) close();
+  });
+})();
+
 const alertBox  = document.getElementById('bn-alert');
 const cardsEl   = document.getElementById('bens-cards');
 const pagerEl   = document.getElementById('pager');
 const plansWrap = document.getElementById('plans-select');
 
-function setAlert(msg){ alertBox.style.display='block'; alertBox.textContent=msg; setTimeout(()=>alertBox.style.display='none',2000); }
+function setAlert(msg){
+  alertBox.style.display='block';
+  alertBox.textContent=msg;
+  setTimeout(()=>alertBox.style.display='none',2000);
+}
 function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
 
@@ -128,14 +234,14 @@ function showFormPreview(url){
 document.getElementById('b-image-url').addEventListener('input', (e)=> showFormPreview(e.target.value.trim()));
 
 /* preview (lista) */
-function showRowPreview(input){
+window.showRowPreview = function showRowPreview(input){
   const wrap = input.closest('.img-url-edit');
   const img = wrap.querySelector('.img-mini:not(.ph)');
   const ph  = wrap.querySelector('.img-mini.ph');
   const url = input.value.trim();
   if (url){ img.src = url; img.style.display='block'; if (ph) ph.style.display='none'; }
   else { img.src=''; img.style.display='none'; if (ph) ph.style.display='flex'; }
-}
+};
 
 let PLAN_OPTIONS = [];
 let ALL = [];
@@ -512,6 +618,13 @@ async function delBenefit(id){
   padding-inline: 0;
 }
 
+/* IMPORTANT: não cortar dropdowns (header/combo) */
+.container.admin,
+.container.admin .admin-main,
+.glass-card{
+  overflow: visible;
+}
+
 /* cards base */
 .glass-card{
   background:#ffffff;
@@ -534,6 +647,14 @@ async function delBenefit(id){
   margin:0 0 8px;
   font-weight:700;
   color:var(--text,#111322);
+}
+
+/* subcard */
+.glass-sub{
+  background:rgba(248,250,252,.8);
+  border:1px dashed rgba(15,23,42,.14);
+  border-radius:16px;
+  padding:12px;
 }
 
 /* form novo */
@@ -687,7 +808,7 @@ textarea.field{ resize:vertical; }
   border:1px solid var(--combo-bd);
   border-radius:14px;
   padding:8px;
-  z-index:50;
+  z-index:999; /* garante acima do card */
   box-shadow:0 12px 32px rgba(15,23,42,.18);
   display:none;
 }
@@ -721,6 +842,23 @@ textarea.field{ resize:vertical; }
   text-overflow:ellipsis;
   white-space:nowrap;
   text-align:left;
+}
+
+/* mini actions do combo (apply/clear) */
+.icon-mini{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:34px;
+  height:30px;
+  border-radius:10px;
+  border:1px solid #d0d7e2;
+  background:#ffffff;
+  color:#111322;
+  cursor:pointer;
+}
+.icon-mini.ghost{
+  background:transparent;
 }
 
 /* chips de planos (form) */
@@ -823,5 +961,11 @@ textarea.field{ resize:vertical; }
 .pg-btn:disabled{
   opacity:.55;
   cursor:not-allowed;
+}
+
+/* responsivo do form */
+@media (max-width:900px){
+  .form-grid{ grid-template-columns:1fr; }
+  .span-2{ grid-column: 1 / -1; }
 }
 </style>

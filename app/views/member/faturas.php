@@ -47,6 +47,150 @@
 </section>
 
 <script>
+/* =========================================================
+   MENU (DASHBOARD) — IGUAL AO DASHBOARD (sem tirar nem por)
+   CORREÇÃO:
+   1) não abre sozinho ao carregar
+   2) se estiver aberto, FECHA corretamente (evita duplo bind)
+   ========================================================= */
+(function(){
+  function init(){
+    var header =
+      document.querySelector('header.topnav[data-topnav]') ||
+      document.querySelector('header.topnav') ||
+      document.querySelector('header.header') ||
+      document.querySelector('header');
+
+    if (!header) return false;
+
+    var nav =
+      header.querySelector('#menu') ||
+      header.querySelector('nav') ||
+      document.getElementById('menu');
+
+    if (!nav) return false;
+
+    // evita bind duplicado (interval + mutation observer podem "ganhar corrida")
+    if (nav.dataset.dashMenuBound === '1') {
+      nav.setAttribute('data-open','false');
+      nav.classList.remove('is-open','open','show','active');
+      document.documentElement.classList.remove('menu-open');
+      document.body.classList.remove('menu-open');
+      var bd = document.querySelector('.menu-backdrop');
+      if (bd) bd.classList.remove('is-on');
+      return true;
+    }
+    nav.dataset.dashMenuBound = '1';
+
+    if (!nav.id) nav.id = 'dash-menu';
+
+    var btn =
+      header.querySelector('.nav-toggle') ||
+      header.querySelector('[data-nav-toggle]');
+
+    if (!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'nav-toggle';
+      btn.setAttribute('aria-controls', nav.id);
+      btn.setAttribute('aria-expanded', 'false');
+      btn.innerHTML = '<span class="nav-toggle__bar"></span><span class="sr-only">Abrir menu</span>';
+
+      var slot =
+        header.querySelector('.header__actions') ||
+        header.querySelector('.topnav__actions') ||
+        header.querySelector('.actions') ||
+        header.querySelector('.right') ||
+        header;
+      slot.appendChild(btn);
+    } else {
+      btn.setAttribute('aria-controls', nav.id);
+      if (!btn.getAttribute('aria-expanded')) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    var backdrop = document.querySelector('.menu-backdrop');
+    if (!backdrop){
+      backdrop = document.createElement('div');
+      backdrop.className = 'menu-backdrop';
+      document.body.appendChild(backdrop);
+    }
+
+    if (btn.dataset.dashMenuBound === '1') return true;
+    btn.dataset.dashMenuBound = '1';
+
+    function isOpen(){
+      return document.documentElement.classList.contains('menu-open') || nav.getAttribute('data-open') === 'true';
+    }
+
+    function open(){
+      nav.setAttribute('data-open','true');
+      btn.setAttribute('aria-expanded','true');
+      document.documentElement.classList.add('menu-open');
+      backdrop.classList.add('is-on');
+    }
+
+    function close(){
+      nav.setAttribute('data-open','false');
+      nav.classList.remove('is-open','open','show','active');
+      btn.setAttribute('aria-expanded','false');
+      document.documentElement.classList.remove('menu-open');
+      document.body.classList.remove('menu-open');
+      backdrop.classList.remove('is-on');
+    }
+
+    // estado inicial: sempre fechado
+    close();
+
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (isOpen()) close();
+      else open();
+    });
+
+    backdrop.addEventListener('click', function(e){
+      e.preventDefault();
+      close();
+    });
+
+    nav.addEventListener('click', function(e){
+      var a = e.target.closest && e.target.closest('a');
+      if (a) close();
+    });
+
+    window.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') close();
+    });
+
+    window.addEventListener('resize', function(){
+      if (window.matchMedia('(min-width: 901px)').matches) close();
+    });
+
+    return true;
+  }
+
+  function boot(){
+    if (init()) return;
+
+    var tries = 0;
+    var t = setInterval(function(){
+      tries++;
+      if (init() || tries >= 25) clearInterval(t);
+    }, 120);
+
+    var mo = new MutationObserver(function(){
+      if (init()){
+        try { mo.disconnect(); } catch(_){}
+        clearInterval(t);
+      }
+    });
+    try{ mo.observe(document.documentElement, {subtree:true, childList:true}); }catch(_){}
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
 /* ===== Helpers ===== */
 const esc = s => (s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const fmtBRL = v => 'R$ ' + (Number(v||0)).toFixed(2).replace('.',',');
@@ -100,7 +244,7 @@ async function loadInvoices(){
     const ct = (r.headers.get('content-type')||'').toLowerCase();
     const raw = await r.text();
     const j = ct.includes('application/json') ? JSON.parse(raw) : { error: raw };
-    if(!r.ok){ 
+    if(!r.ok){
       tbody.innerHTML = `<tr><td colspan="6" class="muted">${esc(j.error||'Falha ao carregar')}</td></tr>`;
       cards.innerHTML = `<div class="muted">Falha ao carregar</div>`;
       return;
@@ -129,11 +273,11 @@ function render(){
     if (st==='pendente' || st==='atraso'){
       payCell = `
         <button class="btn btn-sm" type="button" data-act="pay" data-id="${esc(inv.id)}">Pagar agora</button>
-        ${inv.boleto_url ? `<a class="icon-link" href="${esc(inv.boleto_url)}" target="_blank" title="Boleto (PDF)" aria-label="Boleto (PDF)">📄</a>` : ''}
+        ${inv.boleto_url ? `<a class="icon-link" href="${esc(inv.boleto_url)}" target="_blank" rel="noopener" title="Boleto (PDF)" aria-label="Boleto (PDF)">📄</a>` : ''}
         ${inv.pix_copy   ? `<button class="icon-link" type="button" data-act="pix" data-code="${esc(inv.pix_copy)}" title="Copiar PIX copia e cola" aria-label="Copiar PIX copia e cola">⚡</button>` : ''}
       `;
     } else if (st==='pago'){
-      payCell = `<a class="btn btn-sm btn--ghost" href="${inv.receipt_url?esc(inv.receipt_url):'#'}" target="${inv.receipt_url?'_blank':'_self'}" ${inv.receipt_url?'':'aria-disabled="true"'}>Ver recibo</a>`;
+      payCell = `<a class="btn btn-sm btn--ghost" href="${inv.receipt_url?esc(inv.receipt_url):'#'}" target="${inv.receipt_url?'_blank':'_self'}" rel="${inv.receipt_url?'noopener':''}" ${inv.receipt_url?'':'aria-disabled="true"'}>Ver recibo</a>`;
     } else if (st==='agendada'){
       payCell = `<span class="muted">Ainda não gerada</span>`;
     } else {
@@ -155,12 +299,10 @@ function render(){
 
 /* ===== Render cards (mobile) ===== */
 function renderCards(){
-  // Próxima: prioriza 'agendada', senão 'pendente'/'atraso' mais próxima
   const next = [...ALL]
     .filter(i => ['agendada','pendente','atraso'].includes(i._norm))
     .sort((a,b)=>cmpAsc(a._due?.getTime()||Infinity, b._due?.getTime()||Infinity))[0] || null;
 
-  // Pagas: ordena por vencimento desc (mais recente primeiro)
   const paids = [...ALL].filter(i=>i._norm==='pago')
     .sort((a,b)=>cmpDesc(a._due?.getTime()||0, b._due?.getTime()||0));
 
@@ -185,16 +327,16 @@ function cardHTML(title, inv, allowPay){
   }
   const st = inv._norm;
   const canPay = allowPay && (st==='pendente' || st==='atraso');
+
   const payBtns = canPay ? `
     <div class="mcard-actions">
       <button class="btn btn-sm" type="button" data-act="pay" data-id="${esc(inv.id)}">Pagar agora</button>
-      ${inv.boleto_url ? `<a class="icon-link" href="${esc(inv.boleto_url)}" target="_blank" title="Boleto (PDF)" aria-label="Boleto (PDF)">📄</a>` : ''}
+      ${inv.boleto_url ? `<a class="icon-link" href="${esc(inv.boleto_url)}" target="_blank" rel="noopener" title="Boleto (PDF)" aria-label="Boleto (PDF)">📄</a>` : ''}
       ${inv.pix_copy   ? `<button class="icon-link" type="button" data-act="pix" data-code="${esc(inv.pix_copy)}" title="Copiar PIX copia e cola" aria-label="Copiar PIX copia e cola">⚡</button>` : ''}
-    </div>` 
+    </div>`
     : (st==='pago' && inv.receipt_url ? `<div class="mcard-actions"><a class="btn btn-sm btn--ghost" href="${esc(inv.receipt_url)}" target="_blank" rel="noopener">Ver recibo</a></div>` : '');
 
   const sub = st==='agendada' ? `Agendada p/ ${fmtDateBR(inv.due_date)}`
-            : st==='pago'     ? `Venc.: ${fmtDateBR(inv.due_date)}`
             :                  `Venc.: ${fmtDateBR(inv.due_date)}`;
 
   return `<div class="mcard" data-id="${esc(inv.id)}">
@@ -209,7 +351,7 @@ function cardHTML(title, inv, allowPay){
   </div>`;
 }
 
-/* ===== Ações (reuso da lógica de pagar/copiar) ===== */
+/* ===== Ações ===== */
 sel?.addEventListener('change', render);
 
 function handleClick(e, root){
@@ -260,6 +402,106 @@ loadInvoices();
 </script>
 
 <style>
+/* ===== FIX: impede scroll lateral (menu + tabela) ===== */
+html, body{ max-width:100%; overflow-x:hidden; }
+
+/* ===== MENU responsivo no header do dashboard (abre como site) ===== */
+.menu-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.35);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .18s ease;
+  z-index: 220;
+}
+.menu-backdrop.is-on{
+  opacity:1;
+  pointer-events:auto;
+}
+html.menu-open{ overflow:hidden; }
+
+header.topnav[data-topnav] .nav-toggle,
+header.topnav .nav-toggle{
+  display:none;
+  position:relative;
+  width:42px;height:42px;
+  border:0;
+  background:#0000;
+  border-radius:10px;
+  cursor:pointer;
+}
+header.topnav[data-topnav] .nav-toggle__bar,
+header.topnav[data-topnav] .nav-toggle__bar::before,
+header.topnav[data-topnav] .nav-toggle__bar::after,
+header.topnav .nav-toggle__bar,
+header.topnav .nav-toggle__bar::before,
+header.topnav .nav-toggle__bar::after{
+  content:"";
+  display:block;
+  height:2px;
+  width:22px;
+  margin:auto;
+  background: currentColor;
+  transition:.2s;
+  position:relative;
+}
+header.topnav[data-topnav] .nav-toggle__bar::before,
+header.topnav .nav-toggle__bar::before{ position:absolute; inset:-6px 0 0 0; }
+header.topnav[data-topnav] .nav-toggle__bar::after,
+header.topnav .nav-toggle__bar::after{ position:absolute; inset: 6px 0 0 0; }
+
+@media (max-width: 900px){
+  header.topnav[data-topnav] .nav-toggle,
+  header.topnav .nav-toggle{
+    display:inline-grid;
+    place-items:center;
+  }
+
+  header.topnav[data-topnav] nav,
+  header.topnav nav,
+  #menu{
+    position:fixed;
+    left:12px !important;
+    right:12px !important;
+    top: calc(var(--topnav-h, 68px) + 10px) !important;
+    z-index: 230 !important;
+
+    display:flex !important;
+    flex-direction:column;
+    gap:14px;
+
+    background:#fff !important;
+    border:1px solid #e9eef2 !important;
+    border-radius:16px !important;
+    padding:16px !important;
+
+    box-shadow:0 18px 40px rgba(15,23,42,.18) !important;
+
+    transform: translateY(-140%) !important;
+    opacity:0 !important;
+    pointer-events:none !important;
+
+    transition: transform .22s ease, opacity .22s ease;
+  }
+
+  html.menu-open header.topnav[data-topnav] nav[data-open="true"],
+  html.menu-open header.topnav nav[data-open="true"],
+  html.menu-open #menu[data-open="true"]{
+    transform: translateY(0) !important;
+    opacity:1 !important;
+    pointer-events:auto !important;
+  }
+
+  header.topnav[data-topnav] nav a,
+  header.topnav nav a,
+  #menu a{
+    color: var(--ink, #2C3E50) !important;
+    text-decoration:none;
+    font-weight:800;
+  }
+}
+
 /* ===== Largura igual ao Header (sem sidebar) ===== */
 .container.member{
   width: min(92vw, var(--container)) !important;
@@ -448,18 +690,11 @@ loadInvoices();
 }
 
 /* ===== MOBILE CARDS (<= 680px) ===== */
-.mobile-cards{
-  display:none;
-}
+.mobile-cards{ display:none; }
 
 @media (max-width:680px){
-  /* esconde filtros+tabela; mostra cards */
-  .filters-inline{
-    display:none;
-  }
-  .table-wrap{
-    display:none;
-  }
+  .filters-inline{ display:none; }
+  .table-wrap{ display:none; }
 
   .mobile-cards{
     display:grid;
@@ -513,7 +748,6 @@ loadInvoices();
     flex-wrap:wrap;
   }
 
-  /* Ajuste botão dentro do card */
   .mcard .btn{
     background:#0f172a;
     color:#fff;

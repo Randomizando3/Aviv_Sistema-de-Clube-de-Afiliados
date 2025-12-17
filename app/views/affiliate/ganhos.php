@@ -22,6 +22,9 @@ $minPay  = is_numeric($stats['min_payout']) ? (float)$stats['min_payout'] : \App
 // helpers
 $moeda = fn($v) => 'R$ ' . number_format((float)$v, 2, ',', '.');
 $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
+
+$minPayAttr = number_format((float)$minPay, 2, '.', '');
+$maxAvail   = number_format((float)($stats['available'] ?? 0), 2, '.', '');
 ?>
 
 <section class="affiliate-gains-page">
@@ -81,17 +84,18 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
           </small>
         </div>
 
-        <form id="payout-form" onsubmit="return false;" class="payout-form">
+        <form id="payout-form" onsubmit="return false;" class="payout-form" autocomplete="off">
           <div class="row-3">
             <div class="input-wrap">
-              <label>Valor do saque</label>
+              <label for="payout-amount">Valor do saque</label>
               <input
                 id="payout-amount"
                 class="field"
                 type="number"
                 step="0.01"
-                min="<?= number_format((float)$minPay, 2, '.', '') ?>"
-                max="<?= number_format((float)$stats['available'], 2, '.', '') ?>"
+                min="<?= $minPayAttr ?>"
+                max="<?= $maxAvail ?>"
+                inputmode="decimal"
                 placeholder="Ex.: 100,00"
                 required
               >
@@ -99,7 +103,7 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
             </div>
 
             <div class="input-wrap">
-              <label>Tipo da chave PIX</label>
+              <label for="payout-pixtype">Tipo da chave PIX</label>
               <select id="payout-pixtype" class="field" required>
                 <option value="" selected disabled>Selecione</option>
                 <option value="cpf">CPF</option>
@@ -111,7 +115,7 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
             </div>
 
             <div class="input-wrap">
-              <label>Chave PIX</label>
+              <label for="payout-pixkey">Chave PIX</label>
               <input id="payout-pixkey" class="field" type="text" placeholder="Digite sua chave PIX" required>
             </div>
           </div>
@@ -184,7 +188,7 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
               <?php foreach ($list as $r): ?>
                 <?php
                   $id   = (int)($r['id'] ?? 0);
-                  $name = (string)($r['member_name'] ?? ($r['member_email'] ?? ('#'.$r['user_id'] ?? '')));
+                  $name = (string)($r['member_name'] ?? ($r['member_email'] ?? ('#' . (string)($r['user_id'] ?? ''))));
                   $amt  = (float)($r['amount'] ?? $r['amount_gross'] ?? 0);
                   $com  = (float)($r['commission'] ?? $r['amount_commission'] ?? 0);
                   $st   = (string)($r['status'] ?? 'pending');
@@ -212,6 +216,104 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
     </section>
   </div>
 </section>
+
+<script>
+/* =========================
+   Menu do Header (abre/fecha igual ao site)
+   - Defensivo: não depende de markup exato
+========================= */
+(function initMenuToggle(){
+  const toggle =
+    document.querySelector(
+      [
+        '[data-menu-toggle]',
+        '[data-nav-toggle]',
+        '#menu-toggle',
+        '#nav-toggle',
+        '#btn-menu',
+        '.menu-toggle',
+        '.nav-toggle',
+        '.hamburger',
+        'button[aria-controls="site-menu"]',
+        'button[aria-controls="site-nav"]'
+      ].join(',')
+    );
+
+  const menu =
+    document.getElementById('site-menu') ||
+    document.getElementById('site-nav')  ||
+    document.querySelector(
+      [
+        '[data-menu]',
+        '[data-nav]',
+        '.site-menu',
+        '.site-nav',
+        '.nav-menu',
+        '.header-menu',
+        '.nav-links',
+        '.mobile-menu',
+        '.mobile-nav'
+      ].join(',')
+    );
+
+  if (!toggle || !menu) return;
+
+  const body = document.body;
+
+  function isOpen(){
+    return (
+      menu.classList.contains('is-open') ||
+      menu.classList.contains('open') ||
+      menu.hasAttribute('data-open') ||
+      body.classList.contains('menu-open')
+    );
+  }
+  function open(){
+    menu.classList.add('is-open','open');
+    menu.setAttribute('data-open','');
+    body.classList.add('menu-open');
+    toggle.classList.add('is-open','open');
+    toggle.setAttribute('aria-expanded','true');
+  }
+  function close(){
+    menu.classList.remove('is-open','open');
+    menu.removeAttribute('data-open');
+    body.classList.remove('menu-open');
+    toggle.classList.remove('is-open','open');
+    toggle.setAttribute('aria-expanded','false');
+  }
+  function toggleMenu(){ isOpen() ? close() : open(); }
+
+  toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+  toggle.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') close();
+  });
+
+  menu.addEventListener('click', (e)=>{
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = (a.getAttribute('href') || '').trim();
+    if (href && href !== '#') close();
+  });
+
+  window.addEventListener('resize', ()=>{
+    if (window.innerWidth > 980) close();
+  });
+})();
+</script>
 
 <style>
 /* ===== Shell geral alinhado ao layout clean ===== */
@@ -337,6 +439,13 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
   align-items:center;
   gap:10px;
   flex-wrap:wrap;
+}
+
+/* Table wrapper */
+.affiliate-gains-page .table-wrap{
+  width:100%;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
 }
 
 /* Tabela clean */
@@ -479,6 +588,9 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
   }
 
   /* Tabelas viram "cards" */
+  .affiliate-gains-page .table-wrap{
+    overflow:visible;
+  }
   .affiliate-gains-page .table-glass{
     border:0;
     border-radius:0;
@@ -540,32 +652,60 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
 
 <script>
 (function(){
-  const moneyBR = v => (new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})).format(v||0);
+  const moneyBR = v => (new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'})).format(Number(v||0));
   const qs = s => document.querySelector(s);
 
   // ===== Histórico de saques =====
   async function loadPayouts(){
     const tbody = qs('#payouts-body');
     if(!tbody) return;
+
     try{
-      const r = await fetch('/?r=api/affiliate/payout/mine',{cache:'no-store'});
-      const j = await r.json();
-      const items = Array.isArray(j?.items) ? j.items : [];
+      const r = await fetch('/?r=api/affiliate/payout/mine',{cache:'no-store', credentials:'same-origin'});
+      const j = await r.json().catch(()=> ({}));
+
+      // aceita formatos: {items:[]}, {data:{items:[]}}, {data:{list:[]}}, {list:[]}
+      const items =
+        (Array.isArray(j?.items) && j.items) ||
+        (Array.isArray(j?.list) && j.list) ||
+        (Array.isArray(j?.data?.items) && j.data.items) ||
+        (Array.isArray(j?.data?.list) && j.data.list) ||
+        [];
+
       const rows = items.map(p=>{
-        const dt = p.created_at ? new Date(String(p.created_at).replace(' ','T')) : null;
+        const id  = (p?.id ?? '-');
+        const raw = String(p?.created_at ?? p?.createdAt ?? '');
+        const dt  = raw ? normalizeDT(raw) : '-';
+        const amt = Number(p?.amount || 0);
+
+        const pixType = String(p?.pix_type || p?.pixType || '-').toUpperCase();
+        const pixKey  = p?.pix_key || p?.pixKey || '';
+        const pixCell = `<span class="muted">${escapeHtml(pixType)}</span>${pixKey ? ' • ' + escapeHtml(String(pixKey)) : ''}`;
+
         return `
           <tr>
-            <td class="col-id">#${p.id ?? '-'}</td>
-            <td>${dt? dt.toLocaleString('pt-BR'): '-'}</td>
-            <td class="num">${moneyBR(p.amount || 0)}</td>
-            <td>${statusChip(p.status)}</td>
-            <td><span class="muted">${String(p.pix_type||'-').toUpperCase()}</span>${p.pix_key ? ' • ' + escapeHtml(String(p.pix_key)) : ''}</td>
+            <td class="col-id">${escapeHtml(String(id))}</td>
+            <td>${escapeHtml(dt)}</td>
+            <td class="num">${moneyBR(amt)}</td>
+            <td>${statusChip(p?.status)}</td>
+            <td>${pixCell}</td>
           </tr>`;
       }).join('');
+
       tbody.innerHTML = rows || `<tr><td colspan="5" class="muted">Nenhum saque solicitado ainda.</td></tr>`;
     }catch(e){
       tbody.innerHTML = `<tr><td colspan="5" class="muted">Falha ao carregar histórico.</td></tr>`;
     }
+  }
+
+  function normalizeDT(s){
+    // tenta ISO / "YYYY-MM-DD HH:MM:SS"
+    try{
+      const iso = s.includes('T') ? s : s.replace(' ', 'T');
+      const d = new Date(iso);
+      if (!isNaN(d.getTime())) return d.toLocaleString('pt-BR');
+    }catch(_){}
+    return s; // fallback: mostra como veio
   }
 
   // ===== Solicitação de saque =====
@@ -573,7 +713,8 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
     const flash  = qs('#payout-flash');
     const btn    = qs('#payout-submit');
     const $amt   = qs('#payout-amount');
-    const amount = parseFloat(($amt.value||'').replace(',','.'));
+
+    const amount = parseFloat(String($amt.value||'').replace(',','.'));
     const min    = parseFloat($amt.getAttribute('min')||'0');
     const max    = parseFloat($amt.getAttribute('max')||'0');
     const pixType= (qs('#payout-pixtype').value||'').trim();
@@ -590,44 +731,58 @@ $pc    = fn($v) => number_format((float)$v, 1, ',', '.') . '%';
       const r = await fetch('/?r=api/affiliate/payout/request',{
         method:'POST',
         headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body
+        body,
+        credentials:'same-origin'
       });
-      const j = await r.json();
-      if(!r.ok || j?.error){
+      const j = await r.json().catch(()=> ({}));
+
+      const hasError = !r.ok || !!j?.error || j?.ok === false || j?.success === false;
+      if (hasError){
         const code = String(j?.error||'').toLowerCase();
         const msg = ({
-          'payouts_unavailable': 'Saques indisponíveis no momento.',
-          'invalid_amount':      'Valor inválido.',
-          'below_minimum':       'Valor abaixo do mínimo permitido.',
-          'insufficient_balance':'Saldo insuficiente para saque.'
-        })[code] || 'Não foi possível solicitar o saque.';
+          'payouts_unavailable':  'Saques indisponíveis no momento.',
+          'invalid_amount':       'Valor inválido.',
+          'below_minimum':        'Valor abaixo do mínimo permitido.',
+          'insufficient_balance': 'Saldo insuficiente para saque.'
+        })[code] || (j?.message ? String(j.message) : 'Não foi possível solicitar o saque.');
         throw new Error(msg);
       }
+
       flashMsg(flash,'Solicitação enviada com sucesso!','ok');
       qs('#payout-form').reset();
       loadPayouts();
     }catch(e){
-      flashMsg(flash, e.message || 'Falha ao solicitar o saque.','err');
+      flashMsg(flash, e?.message || 'Falha ao solicitar o saque.','err');
     }finally{
       btn.disabled = false;
     }
   });
 
   function statusChip(s){
-    const map = {
+    const st = String(s||'').toLowerCase();
+    const mapClass = {
       'requested':'chip chip-pending',
+      'pending':'chip chip-pending',
+      'processing':'chip chip-pending',
       'approved':'chip chip-success',
       'paid':'chip chip-success',
-      'rejected':'chip chip-failed'
+      'done':'chip chip-success',
+      'rejected':'chip chip-failed',
+      'failed':'chip chip-failed'
     };
-    const cls = map[String(s||'').toLowerCase()] || 'chip';
-    const txt = ({
+    const mapText = {
       'requested':'Pendente',
+      'pending':'Pendente',
+      'processing':'Em processamento',
       'approved':'Aprovado',
       'paid':'Pago',
-      'rejected':'Rejeitado'
-    })[String(s||'').toLowerCase()] || '—';
-    return `<span class="${cls}"><span style="width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block;opacity:.7"></span>${txt}</span>`;
+      'done':'Pago',
+      'rejected':'Rejeitado',
+      'failed':'Rejeitado'
+    };
+    const cls = mapClass[st] || 'chip';
+    const txt = mapText[st] || (st ? st : '—');
+    return `<span class="${cls}"><span style="width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block;opacity:.7"></span>${escapeHtml(txt)}</span>`;
   }
 
   function flashMsg(node, msg, type){

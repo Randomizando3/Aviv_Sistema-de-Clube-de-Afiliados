@@ -139,6 +139,108 @@
 </section>
 
 <script>
+/* =========================
+   FIX: Menu do Header/Admin (abre/fecha)
+   - Funciona mesmo se o header estiver fora deste arquivo
+   - Fecha fora / ESC / clique em link / resize
+========================= */
+(function initAdminMenuToggle(){
+  const toggle =
+    document.querySelector(
+      [
+        '[data-menu-toggle]',
+        '[data-nav-toggle]',
+        '#menu-toggle',
+        '#nav-toggle',
+        '#btn-menu',
+        '.menu-toggle',
+        '.nav-toggle',
+        '.hamburger',
+        'button[aria-controls="site-menu"]',
+        'button[aria-controls="site-nav"]'
+      ].join(',')
+    );
+
+  const menu =
+    document.getElementById('site-menu') ||
+    document.getElementById('site-nav')  ||
+    document.querySelector(
+      [
+        '[data-menu]',
+        '[data-nav]',
+        '.site-menu',
+        '.site-nav',
+        '.nav-menu',
+        '.header-menu',
+        '.nav-links',
+        '.mobile-menu',
+        '.mobile-nav'
+      ].join(',')
+    );
+
+  if (!toggle || !menu) return;
+
+  const body = document.body;
+
+  function isOpen(){
+    return (
+      menu.classList.contains('is-open') ||
+      menu.classList.contains('open') ||
+      menu.hasAttribute('data-open') ||
+      body.classList.contains('menu-open')
+    );
+  }
+
+  function open(){
+    menu.classList.add('is-open','open');
+    menu.setAttribute('data-open','');
+    body.classList.add('menu-open');
+    toggle.classList.add('is-open','open');
+    toggle.setAttribute('aria-expanded','true');
+  }
+
+  function close(){
+    menu.classList.remove('is-open','open');
+    menu.removeAttribute('data-open');
+    body.classList.remove('menu-open');
+    toggle.classList.remove('is-open','open');
+    toggle.setAttribute('aria-expanded','false');
+  }
+
+  function toggleMenu(){
+    isOpen() ? close() : open();
+  }
+
+  toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+  toggle.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') close();
+  });
+
+  menu.addEventListener('click', (e)=>{
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = (a.getAttribute('href') || '').trim();
+    if (href && href !== '#') close();
+  });
+
+  window.addEventListener('resize', ()=>{
+    if (window.innerWidth > 980) close();
+  });
+})();
+
 const alertBox     = document.getElementById('plans-alert');
 const alertBoxM    = document.getElementById('plans-alert-m');
 const tableWrap    = document.getElementById('plans-table-wrap');
@@ -649,6 +751,12 @@ loadPlans();
   width:min(92vw, var(--container)) !important;
   margin-inline:auto;
   padding-inline:0;
+}
+
+/* evita cortar dropdowns/menus do header */
+.container.admin,
+.container.admin .admin-main{
+  overflow:visible;
 }
 
 /* ===== base visual clean ===== */

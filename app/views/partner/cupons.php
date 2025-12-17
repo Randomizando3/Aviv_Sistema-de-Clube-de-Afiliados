@@ -6,7 +6,53 @@ if (!$u || ($u['role'] ?? 'member') !== 'partner') {
   echo "<p style='padding:16px'>Acesso negado.</p>";
   return;
 }
+
+/**
+ * MENU (mobile full-screen) — mesmo do dashboard
+ * - Anúncios      -> /?r=partner/dashboard
+ * - Meus cupons   -> /?r=partner/cupons
+ * - Sair          -> /?r=auth/logout
+ */
+$menuItems = [
+  ['label'=>'🪧 Anúncios',    'href'=>'/?r=partner/dashboard'],
+  ['label'=>'🏷️ Meus cupons', 'href'=>'/?r=partner/cupons'],
+  ['label'=>'⬅️ Sair',        'href'=>'/?r=auth/login'],
+];
 ?>
+
+<!-- ===== MENU OVERLAY (div cheia) ===== -->
+<div id="mnav" class="mnav" aria-hidden="true">
+  <div class="mnav-backdrop" data-mnav-close></div>
+  <aside class="mnav-panel" role="dialog" aria-modal="true" aria-label="Menu">
+    <div class="mnav-head">
+      <div class="mnav-brand">
+        <span class="mnav-dot"></span>
+        <strong>Parceiro</strong>
+        <small class="muted" style="margin-left:8px">Menu</small>
+      </div>
+      <button type="button" class="mnav-x" data-mnav-close aria-label="Fechar menu">&times;</button>
+    </div>
+
+    <nav class="mnav-links" aria-label="Navegação">
+      <?php foreach ($menuItems as $it): ?>
+        <a class="mnav-link" href="<?= htmlspecialchars($it['href']) ?>">
+          <?= htmlspecialchars($it['label']) ?>
+        </a>
+      <?php endforeach; ?>
+    </nav>
+
+    <div class="mnav-foot">
+      <div class="mnav-user">
+        <div class="mnav-ava"><?= strtoupper(substr(($u['name'] ?? 'P'), 0, 1)) ?></div>
+        <div class="mnav-ud">
+          <div class="mnav-un"><?= htmlspecialchars($u['name'] ?? 'Parceiro') ?></div>
+          <div class="mnav-ue muted"><?= htmlspecialchars($u['email'] ?? '—') ?></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
 <section class="container partner-coupons" style="margin-top:18px">
   <div class="glass-card">
     <h1 class="sect-title">Parceiro • Cupons & Ofertas</h1>
@@ -91,7 +137,7 @@ if (!$u || ($u['role'] ?? 'member') !== 'partner') {
 
         <!-- Ações -->
         <div class="form-actions span-2">
-          <button id="offer-send" class="btn btn--primary">Enviar para aprovação</button>
+          <button id="offer-send" class="btn btn--primary" type="button">Enviar para aprovação</button>
           <button id="offer-reset" class="btn btn--ghost" type="button">Limpar</button>
         </div>
       </form>
@@ -136,178 +182,340 @@ if (!$u || ($u['role'] ?? 'member') !== 'partner') {
 
 <script>
 (function(){
-  const $  = (s,sc)=> (sc||document).querySelector(s);
-  const F  = $('#offer-form');
-  const FL = $('#flash');
-
-  // flash helper
-  function flash(type, msg, persistMs=6000){
-    const el = document.createElement('div');
-    el.className = 'flash ' + (type==='ok' ? 'flash--ok' : type==='warn' ? 'flash--warn' : 'flash--err');
-    el.innerHTML = `<strong>${type==='ok'?'Sucesso': type==='warn'?'Atenção':'Erro'}:</strong> ${msg}`;
-    FL.appendChild(el);
-    if (persistMs>0) setTimeout(()=> el.remove(), persistMs);
+  function ready(fn){
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+    else fn();
   }
 
-  // combo: tipo
-  const combo = $('#type-combo');
-  function closeCombos(except=null){
-    document.querySelectorAll('.combo[data-open]').forEach(c=>{
-      if (except && c===except) return;
-      c.removeAttribute('data-open');
-      c.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
-    });
-  }
-  document.addEventListener('click', (e)=>{
-    const inside = e.target.closest('.combo');
-    if (!inside) closeCombos();
-    const btn = e.target.closest('.combo-btn');
-    if (btn){
-      const c = btn.closest('.combo');
-      const open = c.hasAttribute('data-open');
-      if (!open){ closeCombos(c); c.setAttribute('data-open',''); btn.setAttribute('aria-expanded','true'); }
-      else { c.removeAttribute('data-open'); btn.setAttribute('aria-expanded','false'); }
-      return;
+  ready(function(){
+    // =========================
+    // MENU MOBILE (div cheia) — mesmo do dashboard
+    // =========================
+    const mnav = document.getElementById('mnav');
+
+    function openMenu(){
+      if (!mnav) return;
+      mnav.classList.add('is-open');
+      mnav.setAttribute('aria-hidden', 'false');
+      document.documentElement.classList.add('no-scroll');
     }
-    const opt = e.target.closest('.combo[data-single] .combo-opt');
-    if (opt){
-      const r = opt.querySelector('input[type="radio"]');
-      if (!r) return;
-      r.checked = true;
-      const label = opt.querySelector('span').textContent;
-      combo.querySelector('.combo-label').textContent = label;
-      combo.querySelector('input[name="type"]').value = r.value;
-      combo.removeAttribute('data-open');
-      combo.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
-      updateTypeVisibility();
-      updatePreview(); // atualizar chip "Cupom/Link/Serviço"
-    }
-  });
-
-  // alterna campos por tipo
-  function updateTypeVisibility(){
-    const t = (F.type.value || 'coupon').toLowerCase();
-    F.querySelectorAll('[data-if]').forEach(el=>{
-      const list = (el.getAttribute('data-if')||'').split('|').map(s=>s.trim());
-      el.style.display = list.includes(t) ? '' : 'none';
-    });
-  }
-
-  // gerar código local
-  $('#gen-code').onclick = ()=>{
-    const s1 = Math.random().toString(36).slice(2,6).toUpperCase();
-    const s2 = Math.random().toString(36).slice(2,6).toUpperCase();
-    F.code.value = `AVIV-${s1}${s2}`;
-    updatePreview();
-  };
-
-  // preview da imagem
-  const prevImgTag = $('#prev-img-tag');
-  const prevImgBox = $('#prev-img');
-  function setPreviewImg(url){
-    url = (url||'').trim();
-    if (!url){
-      prevImgTag.hidden = true;
-      prevImgTag.src='';
-      prevImgBox.querySelector('.ph').style.display='flex';
-      return;
-    }
-    prevImgTag.src = url;
-    prevImgTag.hidden = false;
-    prevImgBox.querySelector('.ph').style.display='none';
-  }
-
-  // preview de texto/meta
-  function updatePreview(){
-    const t     = (F.type.value || 'coupon').toLowerCase();
-    $('#prev-type').textContent  = t==='coupon' ? 'Cupom' : (t==='link' ? 'Link' : 'Serviço');
-    $('#prev-title').textContent = (F.title.value || 'Título da oferta');
-    $('#prev-desc').textContent  = (F.description.value || 'Descrição curta aparecerá aqui. Escreva algo objetivo e convidativo.');
-
-    const codeChip = $('#prev-code');
-    if (t==='coupon' && F.code.value.trim()){
-      codeChip.textContent = F.code.value.trim();
-      codeChip.hidden = false;
-    } else {
-      codeChip.hidden = true;
-      codeChip.textContent = '—';
+    function closeMenu(){
+      if (!mnav) return;
+      mnav.classList.remove('is-open');
+      mnav.setAttribute('aria-hidden', 'true');
+      document.documentElement.classList.remove('no-scroll');
     }
 
-    const v = (F.valid_until.value || '').trim();
-    const validChip = $('#prev-valid');
-    if (v){
-      validChip.hidden = false;
-      validChip.textContent = 'Válido até ' + v.split('-').reverse().join('/');
-    } else {
-      validChip.hidden = true;
-    }
-  }
+    const menuToggle =
+      document.getElementById('navToggle') ||
+      document.getElementById('menuToggle') ||
+      document.getElementById('btn-menu') ||
+      document.getElementById('btnMenu') ||
+      document.querySelector('[data-nav-toggle]') ||
+      document.querySelector('[data-menu-toggle]') ||
+      document.querySelector('.nav-toggle') ||
+      document.querySelector('.menu-toggle') ||
+      document.querySelector('button[aria-label="Menu"]') ||
+      document.querySelector('button[aria-controls="mobileMenu"]');
 
-  // eventos para atualizar preview
-  ['input','change','keyup'].forEach(ev=>{
-    F.addEventListener(ev, (e)=>{
-      if (e.target.name === 'image_url'){ setPreviewImg(e.target.value); }
-      updatePreview();
-    });
-  });
-
-  // submit
-  $('#offer-send').onclick = async ()=>{
-    const title = (F.title.value||'').trim();
-    if (!title){ flash('err','Informe o título.'); return; }
-
-    const body = new URLSearchParams({
-      title,
-      type: (F.type.value||'coupon'),
-      code: (F.code?.value||'').trim(),
-      link: (F.link?.value||'').trim(),
-      specialty: (F.specialty?.value||'').trim(),
-      valid_until: (F.valid_until?.value||'').trim(),
-      description: (F.description?.value||'').trim(),
-      image_url: (F.image_url?.value||'').trim()
-    });
-
-    const btn = $('#offer-send');
-    btn.disabled = true; btn.textContent = 'Enviando...';
-    try{
-      const r = await fetch('/?r=api/partner/offer', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body
+    if (menuToggle){
+      menuToggle.addEventListener('click', function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        openMenu();
       });
-      let j; try { j = await r.json(); } catch(e){ j = { ok:false, error:'Resposta inválida do servidor' }; }
-      if (!j || j.ok === false){ throw new Error(j.error || 'Falha ao enviar'); }
-      flash('ok','Oferta enviada! Aguarde a aprovação do admin.');
+    }
+
+    mnav?.querySelectorAll('[data-mnav-close]').forEach(el=>{
+      el.addEventListener('click', function(e){
+        e.preventDefault();
+        closeMenu();
+      });
+    });
+
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && mnav?.classList.contains('is-open')) closeMenu();
+    });
+
+    mnav?.querySelectorAll('a.mnav-link').forEach(a=>{
+      a.addEventListener('click', ()=> closeMenu());
+    });
+
+    // =========================
+    // CUPONS.PHP — script original
+    // =========================
+    const $  = (s,sc)=> (sc||document).querySelector(s);
+    const F  = $('#offer-form');
+    const FL = $('#flash');
+
+    function flash(type, msg, persistMs=6000){
+      const el = document.createElement('div');
+      el.className = 'flash ' + (type==='ok' ? 'flash--ok' : type==='warn' ? 'flash--warn' : 'flash--err');
+      el.innerHTML = `<strong>${type==='ok'?'Sucesso': type==='warn'?'Atenção':'Erro'}:</strong> ${msg}`;
+      FL.appendChild(el);
+      if (persistMs>0) setTimeout(()=> el.remove(), persistMs);
+    }
+
+    // combo: tipo
+    const combo = $('#type-combo');
+    function closeCombos(except=null){
+      document.querySelectorAll('.combo[data-open]').forEach(c=>{
+        if (except && c===except) return;
+        c.removeAttribute('data-open');
+        c.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
+      });
+    }
+    document.addEventListener('click', (e)=>{
+      // importante: se menu estiver aberto, não processa combos
+      if (mnav?.classList.contains('is-open')) return;
+
+      const inside = e.target.closest('.combo');
+      if (!inside) closeCombos();
+
+      const btn = e.target.closest('.combo-btn');
+      if (btn){
+        const c = btn.closest('.combo');
+        const open = c.hasAttribute('data-open');
+        if (!open){ closeCombos(c); c.setAttribute('data-open',''); btn.setAttribute('aria-expanded','true'); }
+        else { c.removeAttribute('data-open'); btn.setAttribute('aria-expanded','false'); }
+        return;
+      }
+
+      const opt = e.target.closest('.combo[data-single] .combo-opt');
+      if (opt){
+        const r = opt.querySelector('input[type="radio"]');
+        if (!r) return;
+        r.checked = true;
+        const label = opt.querySelector('span').textContent;
+        combo.querySelector('.combo-label').textContent = label;
+        combo.querySelector('input[name="type"]').value = r.value;
+        combo.removeAttribute('data-open');
+        combo.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
+        updateTypeVisibility();
+        updatePreview();
+      }
+    });
+
+    function updateTypeVisibility(){
+      const t = (F.type.value || 'coupon').toLowerCase();
+      F.querySelectorAll('[data-if]').forEach(el=>{
+        const list = (el.getAttribute('data-if')||'').split('|').map(s=>s.trim());
+        el.style.display = list.includes(t) ? '' : 'none';
+      });
+    }
+
+    $('#gen-code').onclick = ()=>{
+      const s1 = Math.random().toString(36).slice(2,6).toUpperCase();
+      const s2 = Math.random().toString(36).slice(2,6).toUpperCase();
+      F.code.value = `AVIV-${s1}${s2}`;
+      updatePreview();
+    };
+
+    const prevImgTag = $('#prev-img-tag');
+    const prevImgBox = $('#prev-img');
+    function setPreviewImg(url){
+      url = (url||'').trim();
+      if (!url){
+        prevImgTag.hidden = true;
+        prevImgTag.src='';
+        prevImgBox.querySelector('.ph').style.display='flex';
+        return;
+      }
+      prevImgTag.src = url;
+      prevImgTag.hidden = false;
+      prevImgBox.querySelector('.ph').style.display='none';
+    }
+
+    function updatePreview(){
+      const t     = (F.type.value || 'coupon').toLowerCase();
+      $('#prev-type').textContent  = t==='coupon' ? 'Cupom' : (t==='link' ? 'Link' : 'Serviço');
+      $('#prev-title').textContent = (F.title.value || 'Título da oferta');
+      $('#prev-desc').textContent  = (F.description.value || 'Descrição curta aparecerá aqui. Escreva algo objetivo e convidativo.');
+
+      const codeChip = $('#prev-code');
+      if (t==='coupon' && F.code.value.trim()){
+        codeChip.textContent = F.code.value.trim();
+        codeChip.hidden = false;
+      } else {
+        codeChip.hidden = true;
+        codeChip.textContent = '—';
+      }
+
+      const v = (F.valid_until.value || '').trim();
+      const validChip = $('#prev-valid');
+      if (v){
+        validChip.hidden = false;
+        validChip.textContent = 'Válido até ' + v.split('-').reverse().join('/');
+      } else {
+        validChip.hidden = true;
+      }
+    }
+
+    ['input','change','keyup'].forEach(ev=>{
+      F.addEventListener(ev, (e)=>{
+        if (e.target.name === 'image_url'){ setPreviewImg(e.target.value); }
+        updatePreview();
+      });
+    });
+
+    $('#offer-send').onclick = async ()=>{
+      const title = (F.title.value||'').trim();
+      if (!title){ flash('err','Informe o título.'); return; }
+
+      const body = new URLSearchParams({
+        title,
+        type: (F.type.value||'coupon'),
+        code: (F.code?.value||'').trim(),
+        link: (F.link?.value||'').trim(),
+        specialty: (F.specialty?.value||'').trim(),
+        valid_until: (F.valid_until?.value||'').trim(),
+        description: (F.description?.value||'').trim(),
+        image_url: (F.image_url?.value||'').trim()
+      });
+
+      const btn = $('#offer-send');
+      btn.disabled = true; btn.textContent = 'Enviando...';
+      try{
+        const r = await fetch('/?r=api/partner/offer', {
+          method: 'POST',
+          headers: {'Content-Type':'application/x-www-form-urlencoded'},
+          body
+        });
+        let j; try { j = await r.json(); } catch(e){ j = { ok:false, error:'Resposta inválida do servidor' }; }
+        if (!j || j.ok === false){ throw new Error(j.error || 'Falha ao enviar'); }
+        flash('ok','Oferta enviada! Aguarde a aprovação do admin.');
+        F.reset();
+        combo.querySelector('.combo-label').textContent = 'Cupom';
+        F.type.value = 'coupon';
+        updateTypeVisibility();
+        setPreviewImg('');
+        updatePreview();
+      } catch(e){
+        flash('err', e.message || 'Erro ao enviar');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Enviar para aprovação';
+      }
+    };
+
+    $('#offer-reset').onclick = ()=>{
       F.reset();
       combo.querySelector('.combo-label').textContent = 'Cupom';
       F.type.value = 'coupon';
       updateTypeVisibility();
       setPreviewImg('');
       updatePreview();
-    } catch(e){
-      flash('err', e.message || 'Erro ao enviar');
-    } finally {
-      btn.disabled = false; btn.textContent = 'Enviar para aprovação';
-    }
-  };
+    };
 
-  $('#offer-reset').onclick = ()=>{
-    F.reset();
-    combo.querySelector('.combo-label').textContent = 'Cupom';
-    F.type.value = 'coupon';
     updateTypeVisibility();
     setPreviewImg('');
     updatePreview();
-  };
-
-  // init
-  updateTypeVisibility();
-  setPreviewImg('');
-  updatePreview();
+  });
 })();
 </script>
 
 <style>
+:root{
+  --card-bg: #ffffff;
+  --card-border: #e5ecf3;
+  --card-radius: 16px;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --accent: #2563eb;
+}
+.no-scroll{ overflow:hidden; }
+
+/* ===== MENU (div cheia) — mesmo do dashboard ===== */
+.mnav{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  display:none;
+}
+.mnav.is-open{ display:block; }
+.mnav-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(15,23,42,.55);
+}
+.mnav-panel{
+  position:absolute;
+  inset:0;
+  background:rgba(255,255,255,.92);
+  backdrop-filter: blur(10px);
+  border-left:1px solid rgba(229,236,243,.9);
+  box-shadow: 0 20px 80px rgba(15,23,42,.25);
+  display:flex;
+  flex-direction:column;
+}
+.mnav-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+  border-bottom:1px solid rgba(229,236,243,.9);
+}
+.mnav-brand{ display:flex; align-items:center; gap:8px; color:var(--text-main); }
+.mnav-dot{
+  width:10px; height:10px; border-radius:999px;
+  background:var(--accent);
+  box-shadow:0 0 0 6px rgba(37,99,235,.12);
+}
+.mnav-x{
+  appearance:none;
+  border:0;
+  background:transparent;
+  color:#111827;
+  font-size:28px;
+  line-height:1;
+  width:44px; height:44px;
+  border-radius:12px;
+  cursor:pointer;
+}
+.mnav-x:hover{ background:rgba(17,24,39,.06); }
+.mnav-links{
+  padding:10px 12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.mnav-link{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(209,217,230,.9);
+  background:#ffffff;
+  text-decoration:none;
+  color:var(--text-main);
+  font-weight:800;
+}
+.mnav-link:hover{
+  border-color: rgba(37,99,235,.35);
+  box-shadow: 0 10px 25px rgba(37,99,235,.12);
+}
+.mnav-foot{
+  margin-top:auto;
+  padding:12px 14px 16px;
+  border-top:1px solid rgba(229,236,243,.9);
+}
+.mnav-user{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.mnav-ava{
+  width:40px; height:40px;
+  border-radius:14px;
+  display:grid; place-items:center;
+  background:rgba(37,99,235,.12);
+  color:var(--accent);
+  font-weight:900;
+}
+.mnav-un{ font-weight:800; color:var(--text-main); }
+.mnav-ue{ font-size:.9rem; }
+
 /* ===== Layout base: cartas brancas no estilo Planos ===== */
 .partner-coupons .glass-card{
   background:#ffffff;

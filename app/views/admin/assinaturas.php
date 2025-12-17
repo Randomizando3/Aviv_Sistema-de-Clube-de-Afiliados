@@ -70,8 +70,8 @@
 </section>
 
 <!-- Modal: editar assinatura -->
-<div class="modal" id="s-modal" role="dialog" aria-modal="true" aria-labelledby="s-modal-title" style="display:none">
-  <div class="modal-box glass-card">
+<div class="modal" id="s-modal" role="dialog" aria-modal="true" aria-labelledby="s-modal-title" aria-hidden="true" style="display:none">
+  <div class="modal-box glass-card" role="document">
     <h3 id="s-modal-title" style="margin:0 0 8px">Alterar assinatura</h3>
     <form class="form-grid" id="s-form" onsubmit="return false">
       <div class="grid-2">
@@ -97,6 +97,102 @@
 </div>
 
 <script>
+/* =========================
+   FIX: Menu do Header/Admin (abre/fecha)
+   - Defensivo: não depende de markup exato
+========================= */
+(function initAdminMenuToggle(){
+  const toggle =
+    document.querySelector(
+      [
+        '[data-menu-toggle]',
+        '[data-nav-toggle]',
+        '#menu-toggle',
+        '#nav-toggle',
+        '#btn-menu',
+        '.menu-toggle',
+        '.nav-toggle',
+        '.hamburger',
+        'button[aria-controls="site-menu"]',
+        'button[aria-controls="site-nav"]'
+      ].join(',')
+    );
+
+  const menu =
+    document.getElementById('site-menu') ||
+    document.getElementById('site-nav')  ||
+    document.querySelector(
+      [
+        '[data-menu]',
+        '[data-nav]',
+        '.site-menu',
+        '.site-nav',
+        '.nav-menu',
+        '.header-menu',
+        '.nav-links',
+        '.mobile-menu',
+        '.mobile-nav'
+      ].join(',')
+    );
+
+  if (!toggle || !menu) return;
+
+  const body = document.body;
+
+  function isOpen(){
+    return (
+      menu.classList.contains('is-open') ||
+      menu.classList.contains('open') ||
+      menu.hasAttribute('data-open') ||
+      body.classList.contains('menu-open')
+    );
+  }
+  function open(){
+    menu.classList.add('is-open','open');
+    menu.setAttribute('data-open','');
+    body.classList.add('menu-open');
+    toggle.classList.add('is-open','open');
+    toggle.setAttribute('aria-expanded','true');
+  }
+  function close(){
+    menu.classList.remove('is-open','open');
+    menu.removeAttribute('data-open');
+    body.classList.remove('menu-open');
+    toggle.classList.remove('is-open','open');
+    toggle.setAttribute('aria-expanded','false');
+  }
+  function toggleMenu(){ isOpen() ? close() : open(); }
+
+  toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+  toggle.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') close();
+  });
+
+  menu.addEventListener('click', (e)=>{
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = (a.getAttribute('href') || '').trim();
+    if (href && href !== '#') close();
+  });
+
+  window.addEventListener('resize', ()=>{
+    if (window.innerWidth > 980) close();
+  });
+})();
+
 (function(){
   const tbody   = document.getElementById('s-body');
   const alertEl = document.getElementById('s-alert');
@@ -139,6 +235,7 @@
       const r = await fetch('/?r=api/admin/plans/list');
       const j = await r.json();
       if(!r.ok) throw new Error(j.error||'Falha');
+
       planMap = {};
       const opts = ['<option value="">Plano</option>']
         .concat((j.plans||[]).map(p => {
@@ -146,11 +243,12 @@
           return `<option value="${escAttr(p.id)}">${escHtml(p.name||p.id)}</option>`;
         }));
       fPlan.innerHTML = opts.join('');
+
       sfPlan.innerHTML = (j.plans||[]).map(p=>`<option value="${escAttr(p.id)}">${escHtml(p.name||p.id)}</option>`).join('');
     }catch(_){
       // fallback
       ['start','plus','prime'].forEach(id => planMap[id] = id[0].toUpperCase()+id.slice(1));
-      fPlan.innerHTML = `<option value="">Plano</option><option value="start">Start</option><option value="plus">Plus</option><option value="prime">Prime</option>`;
+      fPlan.innerHTML  = `<option value="">Plano</option><option value="start">Start</option><option value="plus">Plus</option><option value="prime">Prime</option>`;
       sfPlan.innerHTML = `<option value="start">Start</option><option value="plus">Plus</option><option value="prime">Prime</option>`;
     }
   }
@@ -235,7 +333,7 @@
     lastSubs = subscriptions || [];
     renderTable(lastSubs);
     renderCards(lastSubs);
-    updateTableShadows(); // após render
+    updateTableShadows();
   }
 
   // Filtros
@@ -246,9 +344,18 @@
   fQuery .addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); render(); } });
 
   // Modal helpers
-  const openM = ()=>{ modal.style.display='block'; };
-  const closeM= ()=>{ modal.style.display='none'; editingId=null; };
-  document.getElementById('sf_cancel').addEventListener('click', closeM);
+  function openM(){
+    modal.style.display='flex';
+    modal.setAttribute('aria-hidden','false');
+    document.body.classList.add('modal-open');
+  }
+  function closeM(){
+    modal.style.display='none';
+    modal.setAttribute('aria-hidden','true');
+    document.body.classList.remove('modal-open');
+    editingId=null;
+  }
+  sfCancel.addEventListener('click', closeM);
   modal.addEventListener('click', e=>{ if(e.target===modal) closeM(); });
   document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeM(); });
 
@@ -256,28 +363,39 @@
   document.addEventListener('click', (e)=>{
     const b = e.target.closest('button[data-edit]');
     if(!b) return;
+
     editingId = b.dataset.edit;
     sfPlan.value = b.dataset.plan || '';
     sfStat.value = b.dataset.status || 'ativa';
+
     // se o plano não consta, adiciona opção ad hoc
     if(sfPlan && editingId && b.dataset.plan && !Array.from(sfPlan.options).some(o => o.value === b.dataset.plan)){
-      const opt = document.createElement('option'); opt.value=b.dataset.plan; opt.textContent=b.dataset.plan; sfPlan.appendChild(opt);
+      const opt = document.createElement('option');
+      opt.value = b.dataset.plan;
+      opt.textContent = b.dataset.plan;
+      sfPlan.appendChild(opt);
       sfPlan.value = b.dataset.plan;
     }
     openM();
   });
 
   // Salvar
-  sfSave.addEventListener('click', async ()=>{
+  sfSave.addEventListener('click', async (e)=>{
+    e.preventDefault();
     if(!editingId) return;
+
     const plan   = sfPlan.value;
     const status = sfStat.value;
+
     const r = await fetch('/?r=api/admin/subscriptions/save', {
-      method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
       body: new URLSearchParams({ id: editingId, plan_id: plan, status })
     });
+
     let j; try { j = await r.json(); } catch(_){ setAlert('Erro na resposta'); return; }
     if(!r.ok){ setAlert(j.error || 'Falha ao salvar'); return; }
+
     setAlert('Assinatura atualizada');
     closeM();
     render();
@@ -312,6 +430,13 @@
   width: min(92vw, var(--container)) !important;
   margin-inline: auto;
   padding-inline: 0;
+}
+
+/* não cortar dropdown do header */
+.container.admin,
+.container.admin .admin-main,
+.subs-page .glass-card{
+  overflow: visible;
 }
 
 /* ===== Base (visual unificado claro) ===== */
@@ -357,6 +482,7 @@
   overflow:auto;
   -webkit-overflow-scrolling:touch;
   border-radius:12px;
+  background:#ffffff;
 }
 .table-wrap::before,
 .table-wrap::after{
@@ -386,7 +512,7 @@
   border-spacing:0;
   table-layout:fixed;
   min-width:1020px;
-  background:#f9fafb;
+  background:#ffffff;
 }
 .tbl-subs thead th{
   position:sticky;
@@ -395,7 +521,7 @@
   text-align:left;
   font-weight:800;
   color:#111827;
-  background:#ffffff;
+  background:#f8fafc;
   padding:10px 8px;
   border-bottom:1px solid #e5e7eb;
 }
@@ -451,9 +577,8 @@
   font-size:.88rem;
 }
 .btn.btn-sm{ padding:8px 12px; }
-.btn--ghost{
-  background:transparent;
-}
+.btn--ghost{ background:transparent; }
+
 .alert{
   margin-top:10px;
   padding:10px 12px;
@@ -468,14 +593,17 @@
   position:fixed;
   inset:0;
   background:rgba(15,23,42,.45);
-  display:flex;
+  display:none; /* aberto via JS: flex */
   align-items:center;
   justify-content:center;
-  z-index:100;
+  z-index:1000;
 }
 .modal-box{
   width:min(560px,92vw);
 }
+
+/* trava scroll com modal aberto */
+body.modal-open{ overflow:hidden; }
 
 /* grid do modal */
 .form-grid .grid-2{

@@ -33,6 +33,153 @@
 </section>
 
 <script>
+/* =========================================================
+   MENU (DASHBOARD) — IGUAL AO DASHBOARD (sem tirar nem por)
+   CORREÇÃO:
+   1) não abre sozinho ao carregar
+   2) se estiver aberto, FECHA corretamente (evita duplo bind)
+   ========================================================= */
+(function(){
+  function init(){
+    var header =
+      document.querySelector('header.topnav[data-topnav]') ||
+      document.querySelector('header.topnav') ||
+      document.querySelector('header.header') ||
+      document.querySelector('header');
+
+    if (!header) return false;
+
+    var nav =
+      header.querySelector('#menu') ||
+      header.querySelector('nav') ||
+      document.getElementById('menu');
+
+    if (!nav) return false;
+
+    // evita bind duplicado (interval + mutation observer podem "ganhar corrida")
+    if (nav.dataset.dashMenuBound === '1') {
+      // ainda força estado inicial fechado para não nascer aberto
+      nav.setAttribute('data-open','false');
+      nav.classList.remove('is-open','open','show','active');
+      document.documentElement.classList.remove('menu-open');
+      document.body.classList.remove('menu-open');
+      var bd = document.querySelector('.menu-backdrop');
+      if (bd) bd.classList.remove('is-on');
+      return true;
+    }
+    nav.dataset.dashMenuBound = '1';
+
+    if (!nav.id) nav.id = 'dash-menu';
+
+    var btn =
+      header.querySelector('.nav-toggle') ||
+      header.querySelector('[data-nav-toggle]');
+
+    if (!btn){
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'nav-toggle';
+      btn.setAttribute('aria-controls', nav.id);
+      btn.setAttribute('aria-expanded', 'false');
+      btn.innerHTML = '<span class="nav-toggle__bar"></span><span class="sr-only">Abrir menu</span>';
+
+      var slot =
+        header.querySelector('.header__actions') ||
+        header.querySelector('.topnav__actions') ||
+        header.querySelector('.actions') ||
+        header.querySelector('.right') ||
+        header;
+      slot.appendChild(btn);
+    } else {
+      btn.setAttribute('aria-controls', nav.id);
+      if (!btn.getAttribute('aria-expanded')) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    var backdrop = document.querySelector('.menu-backdrop');
+    if (!backdrop){
+      backdrop = document.createElement('div');
+      backdrop.className = 'menu-backdrop';
+      document.body.appendChild(backdrop);
+    }
+
+    // guard extra (se o header re-renderizar, impede listeners duplicados no mesmo btn)
+    if (btn.dataset.dashMenuBound === '1') return true;
+    btn.dataset.dashMenuBound = '1';
+
+    function isOpen(){
+      // considera aberto se html tem classe OU nav está data-open=true
+      return document.documentElement.classList.contains('menu-open') || nav.getAttribute('data-open') === 'true';
+    }
+
+    function open(){
+      nav.setAttribute('data-open','true');
+      btn.setAttribute('aria-expanded','true');
+      document.documentElement.classList.add('menu-open');
+      backdrop.classList.add('is-on');
+    }
+
+    function close(){
+      nav.setAttribute('data-open','false');
+      nav.classList.remove('is-open','open','show','active');
+      btn.setAttribute('aria-expanded','false');
+      document.documentElement.classList.remove('menu-open');
+      document.body.classList.remove('menu-open');
+      backdrop.classList.remove('is-on');
+    }
+
+    // estado inicial: sempre fechado
+    close();
+
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if (isOpen()) close();
+      else open();
+    });
+
+    backdrop.addEventListener('click', function(e){
+      e.preventDefault();
+      close();
+    });
+
+    nav.addEventListener('click', function(e){
+      var a = e.target.closest && e.target.closest('a');
+      if (a) close();
+    });
+
+    window.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') close();
+    });
+
+    window.addEventListener('resize', function(){
+      if (window.matchMedia('(min-width: 901px)').matches) close();
+    });
+
+    return true;
+  }
+
+  function boot(){
+    if (init()) return;
+
+    var tries = 0;
+    var t = setInterval(function(){
+      tries++;
+      if (init() || tries >= 25) clearInterval(t);
+    }, 120);
+
+    var mo = new MutationObserver(function(){
+      if (init()){
+        try { mo.disconnect(); } catch(_){}
+        clearInterval(t);
+      }
+    });
+    try{ mo.observe(document.documentElement, {subtree:true, childList:true}); }catch(_){}
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
 /* ===== Helpers ===== */
 const esc = s => (s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const norm = s => String(s||'').trim().toLowerCase();
@@ -47,10 +194,10 @@ const freeCta = document.getElementById('free-cta');
 
 let MY_PLAN_ID = null;
 let MY_PLAN_NAME = null;
-let TOKENS = [];         // tokens de filtro por plano
-let ALL = [];            // lista vinda do backend (já por plano/validade/ativo)
-let VISIBLE = [];        // após busca local
-let SPECIALTIES = [];    // especialidades possíveis (após plano)
+let TOKENS = [];
+let ALL = [];
+let VISIBLE = [];
+let SPECIALTIES = [];
 
 /* ===== Combo helpers ===== */
 function renderSingleComboHTML(field, options, current){
@@ -114,7 +261,7 @@ document.addEventListener('change', (e)=>{
   combo.removeAttribute('data-open');
   combo.querySelector('.combo-btn')?.setAttribute('aria-expanded','false');
 
-  if (combo.closest('#specialty-filter')) loadBenefits(); // backend filtra por especialidade
+  if (combo.closest('#specialty-filter')) loadBenefits();
 });
 document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape'){ closeAllCombos(); } });
 
@@ -135,7 +282,7 @@ async function loadCurrentPlan(){
     if (MY_PLAN_ID === 'free') freeCta.style.display = 'block';
 
     TOKENS = uniq([MY_PLAN_ID, norm(MY_PLAN_NAME)]).filter(Boolean);
-  }catch(e){/* noop */}
+  }catch(e){}
 }
 
 /* ===== Render filtro ===== */
@@ -165,7 +312,6 @@ async function loadBenefits(){
     SPECIALTIES = Array.isArray(j.specialties) ? j.specialties : [];
     renderSpecialtyFilter();
 
-    // fallback de tokens (se necessário)
     if (!TOKENS.length) {
       const pid = norm(j.user_plan_id||'');
       const pn  = norm(j.user_plan_name||'');
@@ -182,7 +328,7 @@ async function loadBenefits(){
   }
 }
 
-/* ===== Filtro (busca local) ===== */
+/* ===== Busca local ===== */
 function applyFilters(){
   const term = norm(bq?.value||'');
 
@@ -283,24 +429,125 @@ bq?.addEventListener('input', ()=>{
 /* ===== Init ===== */
 (async function(){
   await loadCurrentPlan();
-  await loadBenefits(); // já renderiza o filtro com as especialidades
+  await loadBenefits();
 })();
 </script>
 
 <style>
+:root{
+  --rail-w: 168px;
+  --rail-gap: 12px;
+  --rail-top: calc(var(--topnav-h, 52px) + 12px);
+}
+
+/* ===== FIX: impede scroll lateral ===== */
+html, body{ max-width:100%; overflow-x:hidden; }
+
+/* ===== MENU responsivo no header do dashboard ===== */
+.menu-backdrop{
+  position:fixed;
+  inset:0;
+  background:rgba(15,23,42,.35);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .18s ease;
+  z-index: 220;
+}
+.menu-backdrop.is-on{
+  opacity:1;
+  pointer-events:auto;
+}
+html.menu-open{ overflow:hidden; }
+
+header.topnav[data-topnav] .nav-toggle,
+header.topnav .nav-toggle{
+  display:none;
+  position:relative;
+  width:42px;height:42px;
+  border:0;
+  background:#0000;
+  border-radius:10px;
+  cursor:pointer;
+}
+header.topnav[data-topnav] .nav-toggle__bar,
+header.topnav[data-topnav] .nav-toggle__bar::before,
+header.topnav[data-topnav] .nav-toggle__bar::after,
+header.topnav .nav-toggle__bar,
+header.topnav .nav-toggle__bar::before,
+header.topnav .nav-toggle__bar::after{
+  content:"";
+  display:block;
+  height:2px;
+  width:22px;
+  margin:auto;
+  background: currentColor;
+  transition:.2s;
+  position:relative;
+}
+header.topnav[data-topnav] .nav-toggle__bar::before,
+header.topnav .nav-toggle__bar::before{ position:absolute; inset:-6px 0 0 0; }
+header.topnav[data-topnav] .nav-toggle__bar::after,
+header.topnav .nav-toggle__bar::after{ position:absolute; inset: 6px 0 0 0; }
+
+@media (max-width: 900px){
+  header.topnav[data-topnav] .nav-toggle,
+  header.topnav .nav-toggle{
+    display:inline-grid;
+    place-items:center;
+  }
+
+  header.topnav[data-topnav] nav,
+  header.topnav nav,
+  #menu{
+    position:fixed;
+    left:12px !important;
+    right:12px !important;
+    top: calc(var(--topnav-h, 68px) + 10px) !important;
+    z-index: 230 !important;
+
+    display:flex !important;
+    flex-direction:column;
+    gap:14px;
+
+    background:#fff !important;
+    border:1px solid #e9eef2 !important;
+    border-radius:16px !important;
+    padding:16px !important;
+
+    box-shadow:0 18px 40px rgba(15,23,42,.18) !important;
+
+    transform: translateY(-140%) !important;
+    opacity:0 !important;
+    pointer-events:none !important;
+
+    transition: transform .22s ease, opacity .22s ease;
+  }
+
+  html.menu-open header.topnav[data-topnav] nav[data-open="true"],
+  html.menu-open header.topnav nav[data-open="true"],
+  html.menu-open #menu[data-open="true"]{
+    transform: translateY(0) !important;
+    opacity:1 !important;
+    pointer-events:auto !important;
+  }
+
+  header.topnav[data-topnav] nav a,
+  header.topnav nav a,
+  #menu a{
+    color: var(--ink, #2C3E50) !important;
+    text-decoration:none;
+    font-weight:800;
+  }
+}
+
 /* ===== Largura igual ao Header (sem sidebar) ===== */
 .container.member{
   width: min(92vw, var(--container)) !important;
   margin-inline: auto;
   padding-inline: 0;
 }
+.member-main{ display:grid; gap:16px; }
 
-.member-main{
-  display:grid;
-  gap:16px;
-}
-
-/* Card base desta página (wrapper principal de Benefícios) */
 .member-main > .glass-card{
   background:#ffffff;
   border:1px solid rgba(15,23,42,.06);
@@ -309,17 +556,12 @@ bq?.addEventListener('input', ()=>{
   color:var(--ink);
   box-shadow:0 12px 30px rgba(15,23,42,.06);
 }
-
-/* Reuso de glass-card dentro (ex: alerta Free, cards de benefício) */
 .member-main .glass-card.muted{
-  /* para o aviso Free, vamos deixar mais “alerta suave” */
   background:#fef3c7;
   border-color:#fed7aa;
   color:#92400e;
   box-shadow:none;
 }
-
-/* Título da página */
 .sect-title{
   margin:0;
   font-family:"Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -328,23 +570,17 @@ bq?.addEventListener('input', ()=>{
   line-height:1.15;
   font-size: clamp(1.3rem, 1rem + 1vw, 1.7rem);
 }
-
-/* Texto auxiliar */
 .muted{
   opacity:.9;
   font-size:.86rem;
   color:#64748b;
 }
-
-/* CTA dentro do aviso Free */
 .cta-up{
   margin-left:8px;
   font-weight:800;
   color:#1d4ed8;
   text-decoration:underline;
 }
-
-/* Título + pill do plano */
 .title-row{
   display:flex;
   align-items:center;
@@ -366,19 +602,15 @@ bq?.addEventListener('input', ()=>{
   padding:4px 8px;
 }
 
-/* Toolbar (filtro maior à esquerda, busca menor à direita) */
+/* Toolbar */
 .bens-toolbar{
   display:flex;
   gap:10px;
   align-items:center;
   margin:8px 0 6px;
 }
-.toolbar-filter{
-  flex:1 1 auto;
-}
-.search-wrap{
-  flex:0 0 300px;
-}
+.toolbar-filter{ flex:1 1 auto; }
+.search-wrap{ flex:0 0 300px; }
 .search-wrap input[type="search"]{
   width:100%;
   padding:10px 12px;
@@ -389,14 +621,10 @@ bq?.addEventListener('input', ()=>{
   outline:none;
   font-size:.9rem;
 }
-.search-wrap input[type="search"]::placeholder{
-  color:#94a3b8;
-}
+.search-wrap input[type="search"]::placeholder{ color:#94a3b8; }
 
-/* Combobox (filtro de especialidade) */
-.combo{
-  position:relative;
-}
+/* Combobox */
+.combo{ position:relative; }
 .combo-btn{
   width:100%;
   display:flex;
@@ -410,9 +638,6 @@ bq?.addEventListener('input', ()=>{
   color:#0f172a;
   cursor:pointer;
   font-size:.9rem;
-}
-.combo-btn svg{
-  flex:0 0 auto;
 }
 .combo-btn:focus{
   outline:2px solid #93c5fd;
@@ -432,9 +657,7 @@ bq?.addEventListener('input', ()=>{
   box-shadow:0 12px 30px rgba(15,23,42,.18);
   display:none;
 }
-.combo[data-open] .combo-menu{
-  display:block;
-}
+.combo[data-open] .combo-menu{ display:block; }
 .combo-list{
   max-height:210px;
   overflow:auto;
@@ -453,13 +676,8 @@ bq?.addEventListener('input', ()=>{
   cursor:pointer;
   font-size:.9rem;
 }
-.combo-opt:hover{
-  border-color:#e2e8f0;
-  background:#eef2ff;
-}
-.combo-opt input{
-  accent-color:#4f46e5;
-}
+.combo-opt:hover{ border-color:#e2e8f0; background:#eef2ff; }
+.combo-opt input{ accent-color:#4f46e5; }
 .combo-label{
   overflow:hidden;
   text-overflow:ellipsis;
@@ -467,7 +685,7 @@ bq?.addEventListener('input', ()=>{
   text-align:left;
 }
 
-/* Grid de cards */
+/* Grid */
 .benef-grid{
   display:grid;
   gap:16px;
@@ -475,26 +693,15 @@ bq?.addEventListener('input', ()=>{
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 @media (max-width:1200px){
-  .benef-grid{
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .benef-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width:720px){
-  .bens-toolbar{
-    flex-direction:column;
-    align-items:stretch;
-    gap:8px;
-  }
-  .search-wrap{
-    flex:unset;
-    width:100%;
-  }
-  .benef-grid{
-    grid-template-columns: 1fr;
-  }
+  .bens-toolbar{ flex-direction:column; align-items:stretch; gap:8px; }
+  .search-wrap{ flex:unset; width:100%; }
+  .benef-grid{ grid-template-columns: 1fr; }
 }
 
-/* Card de benefício */
+/* Card benefício */
 .benef-card.glass-card{
   display:flex;
   flex-direction:column;
@@ -506,20 +713,13 @@ bq?.addEventListener('input', ()=>{
   box-shadow:0 10px 24px rgba(15,23,42,.08);
   color:#0f172a;
 }
-
-/* cover */
 .cover{
   position:relative;
   width:100%;
   height:220px;
   background:#f1f5f9;
 }
-.cover-img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
+.cover-img{ width:100%; height:100%; object-fit:cover; display:block; }
 .cover-ph{
   width:100%;
   height:100%;
@@ -530,8 +730,6 @@ bq?.addEventListener('input', ()=>{
   color:#94a3b8;
   background:linear-gradient(180deg,#eff6ff,#e2e8f0);
 }
-
-/* corpo do card */
 .card-body{
   position:relative;
   padding:12px 14px 54px 14px;
@@ -539,11 +737,7 @@ bq?.addEventListener('input', ()=>{
   gap:8px;
   min-height:170px;
 }
-.meta-top{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
+.meta-top{ display:flex; align-items:center; gap:10px; }
 .type-pill{
   font-size:.68rem;
   font-weight:800;
@@ -554,26 +748,11 @@ bq?.addEventListener('input', ()=>{
   line-height:1;
   color:#3730a3;
 }
-.expires{
-  font-size:.72rem;
-  opacity:.9;
-}
-.b-title{
-  font-size:1.02rem;
-  margin:0;
-  font-weight:800;
-}
-.b-sub{
-  font-size:.9rem;
-}
-.b-desc{
-  margin:0;
-}
-
-/* cupom */
-.coupon-row{
-  margin-top:2px;
-}
+.expires{ font-size:.72rem; opacity:.9; }
+.b-title{ font-size:1.02rem; margin:0; font-weight:800; }
+.b-sub{ font-size:.9rem; }
+.b-desc{ margin:0; }
+.coupon-row{ margin-top:2px; }
 .coupon-code{
   display:block;
   text-align:center;
@@ -589,8 +768,6 @@ bq?.addEventListener('input', ()=>{
   border:1px dashed #bfdbfe;
   color:#1d4ed8;
 }
-
-/* ícones (copiar / abrir link) */
 .cta-icons{
   position:absolute;
   right:10px;
@@ -612,9 +789,7 @@ bq?.addEventListener('input', ()=>{
   text-decoration:none;
   transition:box-shadow .16s ease, transform .06s ease, background .16s ease;
 }
-.icon-btn svg{
-  opacity:.9;
-}
+.icon-btn svg{ opacity:.9; }
 .icon-btn:hover{
   background:#eff6ff;
   box-shadow:0 6px 18px rgba(15,23,42,.12);
@@ -623,17 +798,8 @@ bq?.addEventListener('input', ()=>{
   transform:translateY(1px);
   box-shadow:0 3px 10px rgba(15,23,42,.14);
 }
-.icon-btn.ok{
-  box-shadow:0 0 0 2px rgba(59,130,246,.55);
-}
+.icon-btn.ok{ box-shadow:0 0 0 2px rgba(59,130,246,.55); }
 
-/* Ajuste para o aviso Free usando .glass-card dentro do wrapper */
-#free-cta.glass-card{
-  margin-top:10px;
-  border-radius:12px;
-}
-
-/* Ajudinha de acessibilidade (screen-reader-only) */
 .sr-only{
   position:absolute;
   width:1px;

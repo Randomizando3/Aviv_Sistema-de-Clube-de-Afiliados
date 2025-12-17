@@ -1,8 +1,14 @@
-<?php if (!empty($PAGE_BARE)) return; ?>
-
 <?php
-// app/views/_partials/_footer.php (sem banner 468)
+// Forçar UTF-8 também no parcial (seguro, mas só seta header se ainda não enviou)
+if (!headers_sent()) {
+  header('Content-Type: text/html; charset=UTF-8');
+}
+if (function_exists('mb_internal_encoding')) { @mb_internal_encoding('UTF-8'); }
+if (function_exists('mb_http_output')) { @mb_http_output('UTF-8'); }
 
+if (!empty($PAGE_BARE)) return;
+
+// app/views/_partials/_footer.php (sem banner 468)
 // Quadrados (250x250) dentro do footer
 $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
 ?>
@@ -40,7 +46,7 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
         <div class="ad-skeleton" aria-hidden="true"></div>
         <?php if (!empty($adSquareFallback)): ?>
           <a href="#" target="_blank" rel="noopener" class="ad-fallback" style="display:none">
-            <img src="<?= htmlspecialchars($adSquareFallback) ?>" alt="Publicidade" width="250" height="250" loading="lazy">
+            <img src="<?= htmlspecialchars($adSquareFallback, ENT_QUOTES, 'UTF-8') ?>" alt="Publicidade" width="250" height="250" loading="lazy">
           </a>
         <?php endif; ?>
       </div>
@@ -49,7 +55,7 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
         <div class="ad-skeleton" aria-hidden="true"></div>
         <?php if (!empty($adSquareFallback)): ?>
           <a href="#" target="_blank" rel="noopener" class="ad-fallback" style="display:none">
-            <img src="<?= htmlspecialchars($adSquareFallback) ?>" alt="Publicidade" width="250" height="250" loading="lazy">
+            <img src="<?= htmlspecialchars($adSquareFallback, ENT_QUOTES, 'UTF-8') ?>" alt="Publicidade" width="250" height="250" loading="lazy">
           </a>
         <?php endif; ?>
       </div>
@@ -67,13 +73,26 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
   --brand-green-dark: #15803d;
 }
 
-/* Largura igual ao header */
-.site-footer .container{
-  width:min(92vw, 1120px);
-  margin-inline:auto;
+/* FULL WIDTH */
+.site-footer{
+  width:100%;
+  margin:0;
+  border-radius:0;
+  overflow:hidden;
+  color:#ecfdf5;
+  padding: 24px 0 0;
+  background: linear-gradient(135deg, var(--brand-green), var(--brand-green-dark));
 }
 
-/* Skeleton shimmer (reuso nos quadrados) */
+/* Container padrão (full footer, conteúdo centralizado) */
+.site-footer .container{
+  width:100%;
+  max-width:1120px;
+  margin-inline:auto;
+  padding-inline:20px;
+}
+
+/* Skeleton shimmer */
 .ad-skeleton{
   position:absolute;
   inset:0;
@@ -85,13 +104,6 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
   to { background-position: -200% 0; }
 }
 
-/* === Footer com fundo verde do site === */
-.site-footer{
-  color:#ecfdf5;
-  padding: 24px 0 0;
-  background: linear-gradient(135deg, var(--brand-green), var(--brand-green-dark));
-}
-
 /* Grid principal */
 .footer-grid{
   display:grid;
@@ -101,10 +113,7 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
 }
 
 /* Coluna esquerda */
-.footer-info img{
-  display:block;
-  margin-bottom:10px;
-}
+.footer-info img{display:block;margin-bottom:10px}
 .footer-info .muted{
   color:#d1fae5;
   margin:6px 0 12px;
@@ -124,31 +133,21 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
   letter-spacing:.04em;
   font-weight:700;
 }
-.footer-cols ul{
-  list-style:none;
-  margin:0;
-  padding:0;
-}
-.footer-cols li{
-  margin:4px 0;
-}
+.footer-cols ul{list-style:none;margin:0;padding:0}
+.footer-cols li{margin:4px 0}
 .footer-cols a{
   color:#ecfdf5;
   text-decoration:none;
   opacity:.95;
   font-size:.9rem;
 }
-.footer-cols a:hover{
-  opacity:1;
-  text-decoration:underline;
-}
+.footer-cols a:hover{opacity:1;text-decoration:underline}
 
-/* Ads no footer (direita) */
+/* Ads */
 .footer-ads{
   display:grid;
   grid-template-columns: 250px 250px;
   gap: 10px;
-  padding-left: 8px;
 }
 .adbox-250{
   width:250px;
@@ -161,19 +160,10 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
   position:relative;
   box-shadow: 0 16px 32px rgba(15,23,42,.35);
 }
-.adbox-250 a{
-  display:block;
-  width:100%;
-  height:100%;
-}
-.adbox-250 img{
-  display:block;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-}
+.adbox-250 a{display:block;width:100%;height:100%}
+.adbox-250 img{display:block;width:100%;height:100%;object-fit:cover}
 
-/* Barra de copyright com faixa verde mais escura */
+/* Copy */
 .copy{
   margin-top: 20px;
   padding: 10px 0 12px;
@@ -185,23 +175,23 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
 
 /* Responsivo */
 @media (max-width: 920px){
+  .footer-grid{grid-template-columns: 1fr}
+  .footer-ads{grid-template-columns: 1fr 1fr;justify-content:center}
+}
+
+/* Mobile: 1 coluna e centralizado */
+@media (max-width: 560px){
   .footer-grid{
     grid-template-columns: 1fr;
+    text-align:center;
+    justify-items:center;
   }
-  .footer-ads{
-    grid-template-columns: 1fr 1fr;
-    justify-content:center;
-    padding-left:0;
-  }
-}
-@media (max-width: 560px){
-  .footer-ads{
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .adbox-250{
-    width:100%;
-  }
+  .footer-info img{margin-inline:auto}
+  .footer-cols{grid-template-columns: 1fr;justify-items:center}
+  .footer-cols ul{padding:0}
+  .footer-ads{grid-template-columns: 1fr;gap:12px}
+  .adbox-250{width:100%;max-width:360px}
+  .copy .container{text-align:center}
 }
 </style>
 
@@ -210,7 +200,6 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
   function ready(fn){ if(document.readyState!=='loading'){ fn(); } else { document.addEventListener('DOMContentLoaded', fn); } }
 
   ready(function(){
-    // Carrega apenas os 2 quadrados (250x250)
     var wrap = document.getElementById('footer-ads');
     var b1 = document.getElementById('ad-square-1');
     var b2 = document.getElementById('ad-square-2');
@@ -250,9 +239,7 @@ $adSquareFallback = $adSquareFallback ?? '/img/ads/250x250-default.png';
           if(it.pixel){
             var px = new Image();
             px.src = it.pixel + '&ts=' + Date.now();
-            px.width=1;
-            px.height=1;
-            px.alt='';
+            px.width=1; px.height=1; px.alt='';
             px.style.position='absolute';
             px.style.inset='auto auto 0 0';
             px.style.opacity='0';

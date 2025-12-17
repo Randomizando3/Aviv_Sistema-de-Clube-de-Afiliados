@@ -41,6 +41,9 @@
 </section>
 
 <script>
+/* =========================
+   KPIs (como estava)
+========================= */
 (async function(){
   const moneyBR = (v)=> 'R$ ' + (Number(v||0)).toFixed(2).replace('.', ',');
 
@@ -63,6 +66,115 @@
     setTimeout(()=> box.style.display='none', 2000);
   }
 })();
+
+/* =========================
+   FIX: Menu do Header/Admin (abre/fecha)
+   - Funciona mesmo se o header estiver fora deste arquivo
+   - Não conflita com outros clicks (fecha fora / ESC)
+========================= */
+(function initAdminMenuToggle(){
+  // tenta achar o botão do menu (hamburger) e o container do menu
+  const toggle =
+    document.querySelector(
+      [
+        '[data-menu-toggle]',
+        '[data-nav-toggle]',
+        '#menu-toggle',
+        '#nav-toggle',
+        '#btn-menu',
+        '.menu-toggle',
+        '.nav-toggle',
+        '.hamburger',
+        'button[aria-controls="site-menu"]',
+        'button[aria-controls="site-nav"]'
+      ].join(',')
+    );
+
+  const menu =
+    document.getElementById('site-menu') ||
+    document.getElementById('site-nav')  ||
+    document.querySelector(
+      [
+        '[data-menu]',
+        '[data-nav]',
+        '.site-menu',
+        '.site-nav',
+        '.nav-menu',
+        '.header-menu',
+        '.nav-links',
+        '.mobile-menu',
+        '.mobile-nav'
+      ].join(',')
+    );
+
+  if (!toggle || !menu) return; // se não existir header nessa view, não faz nada
+
+  const body = document.body;
+
+  function isOpen(){
+    return (
+      menu.classList.contains('is-open') ||
+      menu.classList.contains('open') ||
+      menu.hasAttribute('data-open') ||
+      body.classList.contains('menu-open')
+    );
+  }
+
+  function open(){
+    menu.classList.add('is-open','open');
+    menu.setAttribute('data-open','');
+    body.classList.add('menu-open');
+    toggle.classList.add('is-open','open');
+    toggle.setAttribute('aria-expanded','true');
+  }
+
+  function close(){
+    menu.classList.remove('is-open','open');
+    menu.removeAttribute('data-open');
+    body.classList.remove('menu-open');
+    toggle.classList.remove('is-open','open');
+    toggle.setAttribute('aria-expanded','false');
+  }
+
+  function toggleMenu(){
+    isOpen() ? close() : open();
+  }
+
+  // estado inicial
+  toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+  // clique no botão
+  toggle.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  // fecha ao clicar fora
+  document.addEventListener('click', (e)=>{
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+
+  // fecha com ESC
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') close();
+  });
+
+  // fecha ao clicar em link dentro do menu (boa UX no mobile)
+  menu.addEventListener('click', (e)=>{
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = (a.getAttribute('href') || '').trim();
+    if (href && href !== '#') close();
+  });
+
+  // se virar desktop, fecha para não ficar preso aberto
+  window.addEventListener('resize', ()=>{
+    if (window.innerWidth > 980) close();
+  });
+})();
 </script>
 
 <style>
@@ -73,13 +185,19 @@
   padding-inline:0;
 }
 
+/* IMPORTANTE: evita o menu/dropdown do header ser “cortado” por algum wrapper */
+.container.admin,
+.container.admin .admin-main{
+  overflow:visible;
+}
+
 /* ===== Cards / tipografia alinhados ao resto do painel ===== */
 .glass-card{
   background:rgba(255,255,255,.92);
   border:1px solid rgba(15,23,42,.06);
   padding:16px 18px;
   border-radius:18px;
-  color:var(--text, #111322);     /* texto escuro, visível */
+  color:var(--text, #111322);
   box-shadow:0 18px 40px rgba(15,23,42,.06);
 }
 
@@ -91,7 +209,7 @@
 
 .muted{
   font-size:.9rem;
-  color:var(--muted, #6b7280);    /* cinza suave, não branco */
+  color:var(--muted, #6b7280);
   opacity:1;
 }
 

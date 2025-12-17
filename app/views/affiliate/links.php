@@ -55,12 +55,12 @@ $link = $code ? ($BASE . '/?ref=' . rawurlencode($code)) : ($BASE . '/');
       <div class="editor-grid">
         <!-- CONTROLES (2/3) -->
         <div class="glass-card editor-controls">
-          <div class="tabs">
-            <button class="tab-btn current" data-tab="size" type="button">Fundo &amp; Tamanho</button>
-            <button class="tab-btn" data-tab="text" type="button">Texto</button>
-            <button class="tab-btn" data-tab="sec" type="button">Texto Secundário</button>
-            <button class="tab-btn" data-tab="logo" type="button">Logo</button>
-            <button class="tab-btn" data-tab="export" type="button">Exportar</button>
+          <div class="tabs" role="tablist" aria-label="Editor do banner">
+            <button class="tab-btn current" data-tab="size" type="button" role="tab" aria-selected="true">Fundo &amp; Tamanho</button>
+            <button class="tab-btn" data-tab="text" type="button" role="tab" aria-selected="false">Texto</button>
+            <button class="tab-btn" data-tab="sec" type="button" role="tab" aria-selected="false">Texto Secundário</button>
+            <button class="tab-btn" data-tab="logo" type="button" role="tab" aria-selected="false">Logo</button>
+            <button class="tab-btn" data-tab="export" type="button" role="tab" aria-selected="false">Exportar</button>
           </div>
 
           <!-- Painel: Fundo & Tamanho -->
@@ -210,7 +210,7 @@ $link = $code ? ($BASE . '/?ref=' . rawurlencode($code)) : ($BASE . '/');
                 </div>
               </div>
               <div class="help small">
-                Arraste no canvas (agora livre em X e Y). Segure <strong>Shift</strong> para travar automaticamente no eixo do movimento.
+                Arraste no canvas (livre em X e Y). Segure <strong>Shift</strong> para travar automaticamente no eixo do movimento.
               </div>
             </div>
           </div>
@@ -382,7 +382,9 @@ $link = $code ? ($BASE . '/?ref=' . rawurlencode($code)) : ($BASE . '/');
             </div>
           </div>
           <div class="preview-wrap">
-            <canvas id="canvas" width="1080" height="1080"></canvas>
+            <div class="canvas-stage">
+              <canvas id="canvas" width="1080" height="1080"></canvas>
+            </div>
           </div>
           <div class="help small" style="margin-top:8px">
             Arraste elementos no canvas (livre em X e Y). Com <strong>Shift</strong>, travo automaticamente no eixo do movimento.
@@ -394,10 +396,117 @@ $link = $code ? ($BASE . '/?ref=' . rawurlencode($code)) : ($BASE . '/');
 </section>
 
 <script>
+/* =========================
+   Menu do Header (abre/fecha igual ao site)
+   - Defensivo: não depende de markup exato
+========================= */
+(function initMenuToggle(){
+  const toggle =
+    document.querySelector(
+      [
+        '[data-menu-toggle]',
+        '[data-nav-toggle]',
+        '#menu-toggle',
+        '#nav-toggle',
+        '#btn-menu',
+        '.menu-toggle',
+        '.nav-toggle',
+        '.hamburger',
+        'button[aria-controls="site-menu"]',
+        'button[aria-controls="site-nav"]'
+      ].join(',')
+    );
+
+  const menu =
+    document.getElementById('site-menu') ||
+    document.getElementById('site-nav')  ||
+    document.querySelector(
+      [
+        '[data-menu]',
+        '[data-nav]',
+        '.site-menu',
+        '.site-nav',
+        '.nav-menu',
+        '.header-menu',
+        '.nav-links',
+        '.mobile-menu',
+        '.mobile-nav'
+      ].join(',')
+    );
+
+  if (!toggle || !menu) return;
+
+  const body = document.body;
+
+  function isOpen(){
+    return (
+      menu.classList.contains('is-open') ||
+      menu.classList.contains('open') ||
+      menu.hasAttribute('data-open') ||
+      body.classList.contains('menu-open')
+    );
+  }
+  function open(){
+    menu.classList.add('is-open','open');
+    menu.setAttribute('data-open','');
+    body.classList.add('menu-open');
+    toggle.classList.add('is-open','open');
+    toggle.setAttribute('aria-expanded','true');
+  }
+  function close(){
+    menu.classList.remove('is-open','open');
+    menu.removeAttribute('data-open');
+    body.classList.remove('menu-open');
+    toggle.classList.remove('is-open','open');
+    toggle.setAttribute('aria-expanded','false');
+  }
+  function toggleMenu(){ isOpen() ? close() : open(); }
+
+  toggle.setAttribute('aria-expanded', isOpen() ? 'true' : 'false');
+
+  toggle.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    toggleMenu();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if (!isOpen()) return;
+    if (menu.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape') close();
+  });
+
+  menu.addEventListener('click', (e)=>{
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = (a.getAttribute('href') || '').trim();
+    if (href && href !== '#') close();
+  });
+
+  window.addEventListener('resize', ()=>{
+    if (window.innerWidth > 980) close();
+  });
+})();
+</script>
+
+<script>
 // ===== util =====
 const $ = s => document.querySelector(s);
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
-function loadImage(url){ return new Promise(res=>{ if(!url){res(null);return;} const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=()=>res(null); i.src=url; }); }
+function loadImage(url){
+  return new Promise(res=>{
+    if(!url){res(null);return;}
+    const i=new Image();
+    i.crossOrigin='anonymous';
+    i.onload=()=>res(i);
+    i.onerror=()=>res(null);
+    i.src=url;
+  });
+}
 function lsGet(k, d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(_){ return d; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){} }
 
@@ -427,9 +536,13 @@ const canvas = $('#canvas'), ctx = canvas.getContext('2d');
 // ===== Tabs =====
 document.querySelectorAll('.tab-btn').forEach(b=>{
   b.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('current'));
+    document.querySelectorAll('.tab-btn').forEach(x=>{
+      x.classList.remove('current');
+      x.setAttribute('aria-selected','false');
+    });
     document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
     b.classList.add('current');
+    b.setAttribute('aria-selected','true');
     const id = b.getAttribute('data-tab');
     document.querySelector(`.tab-panel[data-panel="${id}"]`).style.display='block';
   });
@@ -512,6 +625,7 @@ $('#resetPos').addEventListener('click', ()=>{
   S.sec.x  = 0.5; S.sec.y  = 0.58;
   S.logo.x = 0.16; S.logo.y = 0.5;
   scheduleDraw(true);
+  lsSet('aff_banner_state_v4', S);
 });
 
 $('#pvZoom').addEventListener('input', (e)=>{
@@ -529,31 +643,39 @@ function syncLogoUrlFromStyle(){
   if (S.logo.style === 'white') S.logo.url = LOGOS.white;
   else if (S.logo.style === 'color') S.logo.url = LOGOS.color;
   $('#logoUrl').disabled = (S.logo.style !== 'custom');
+  if (S.logo.style !== 'custom') $('#logoUrl').value = S.logo.url;
   loadLogo();
 }
 
 // Copiar
-function copySelector(sel){
+async function copySelector(sel){
+  const el = document.querySelector(sel);
+  if(!el) return false;
+  const val = (el.value ?? el.textContent ?? '').toString();
+
   try{
-    const el=document.querySelector(sel);
-    if(!el) return;
-    el.select();
-    el.setSelectionRange(0,99999);
-    document.execCommand('copy');
-  } catch(e){
-    try{
-      navigator.clipboard && navigator.clipboard.writeText(document.querySelector(sel).value);
-    }catch(_){}
-  }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(val);
+      return true;
+    }
+  }catch(_){}
+
+  try{
+    el.focus();
+    if (el.select) el.select();
+    if (el.setSelectionRange) el.setSelectionRange(0, 999999);
+    return !!(document.execCommand && document.execCommand('copy'));
+  }catch(_){}
+  return false;
 }
-document.addEventListener('click', (ev)=>{
-  const b=ev.target.closest('[data-copy]');
+document.addEventListener('click', async (ev)=>{
+  const b = ev.target.closest('[data-copy]');
   if(!b) return;
   ev.preventDefault();
-  copySelector(b.getAttribute('data-copy'));
-  const old=b.textContent;
-  b.textContent='Copiado!';
-  setTimeout(()=>b.textContent=old,900);
+  const ok = await copySelector(b.getAttribute('data-copy'));
+  const old = b.textContent;
+  b.textContent = ok ? 'Copiado!' : 'Falhou';
+  setTimeout(()=>b.textContent = old, 900);
 });
 
 // ===== draw =====
@@ -824,7 +946,7 @@ $('#btn-genhtml').addEventListener('click', ()=>{
   const useData = $('#htmlEmbedData').checked;
   draw();
   const dataURL = canvas.toDataURL('image/png');
-  const src = useData ? dataURL : dataURL; // pode trocar por URL hospedada
+  const src = useData ? dataURL : dataURL; // se desligar no futuro, troque por URL hospedada
   const html =
 `<a href="<?= htmlspecialchars($link) ?>" target="_blank" rel="noopener">
   <img src="${src}" alt="Aviv+ — Benefícios, cupons e muito mais" width="${S.w}" height="${S.h}" style="display:block;border:0">
@@ -852,7 +974,13 @@ $('#save-html').addEventListener('click', ()=>{
 </script>
 
 <style>
-/* ===== Shell geral alinhado ao layout clean ===== */
+/* ===== Shell geral alinhado ao header ===== */
+.affiliate-links-inner.container{
+  width:min(92vw, var(--container));
+  margin-inline:auto;
+  padding-inline:0;
+}
+
 .affiliate-links-page{
   width:100%;
   padding:24px 0 48px;
@@ -937,9 +1065,12 @@ $('#save-html').addEventListener('click', ()=>{
   display:flex;
   gap:10px;
   align-items:center;
+  min-width:0;
+  flex-wrap:wrap;
 }
 .affiliate-links-page .ref-input input{
-  flex:1;
+  flex:1 1 320px;
+  min-width:0;
   border-radius:999px;
   border:1px solid #e2e8f0;
   background:#f8fafc;
@@ -947,6 +1078,9 @@ $('#save-html').addEventListener('click', ()=>{
   padding:10px 12px;
   font-weight:600;
   font-size:.9rem;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 /* Editor grid 2/3 + 1/3 */
@@ -957,17 +1091,13 @@ $('#save-html').addEventListener('click', ()=>{
   align-items:flex-start;
 }
 @media (max-width: 1200px){
-  .affiliate-links-page .editor-grid{
-    grid-template-columns:1fr;
-  }
+  .affiliate-links-page .editor-grid{ grid-template-columns:1fr; }
 }
 @media (max-width: 900px){
-  .affiliate-links-page .preview-card{
-    order:-1;
-  }
+  .affiliate-links-page .preview-card{ order:-1; }
 }
 
-/* Tabs */
+/* Tabs (evita estourar no mobile) */
 .affiliate-links-page .tabs{
   display:flex;
   gap:6px;
@@ -979,10 +1109,9 @@ $('#save-html').addEventListener('click', ()=>{
     flex-wrap:nowrap;
     overflow:auto;
     -webkit-overflow-scrolling:touch;
+    padding-bottom:2px;
   }
-  .affiliate-links-page .tab-btn{
-    flex:0 0 auto;
-  }
+  .affiliate-links-page .tabs::-webkit-scrollbar{ height:6px; }
 }
 .affiliate-links-page .tab-btn{
   padding:8px 12px;
@@ -993,6 +1122,7 @@ $('#save-html').addEventListener('click', ()=>{
   cursor:pointer;
   font-weight:600;
   font-size:.85rem;
+  white-space:nowrap;
 }
 .affiliate-links-page .tab-btn.current{
   background:#ffffff;
@@ -1007,9 +1137,7 @@ $('#save-html').addEventListener('click', ()=>{
   border-radius:12px;
   padding:12px;
 }
-.affiliate-links-page .group + .group{
-  margin-top:10px;
-}
+.affiliate-links-page .group + .group{ margin-top:10px; }
 .affiliate-links-page .group-title{
   font-weight:700;
   margin:0 0 8px;
@@ -1029,9 +1157,7 @@ $('#save-html').addEventListener('click', ()=>{
   grid-template-columns:1fr 1fr 1fr;
 }
 @media (max-width: 900px){
-  .affiliate-links-page .row-3{
-    grid-template-columns:1fr;
-  }
+  .affiliate-links-page .row-3{ grid-template-columns:1fr; }
 }
 .affiliate-links-page .input-wrap{
   display:grid;
@@ -1062,14 +1188,8 @@ $('#save-html').addEventListener('click', ()=>{
   background:transparent;
 }
 .affiliate-links-page .field[type="color"]::-webkit-color-swatch-wrapper{ padding:0; }
-.affiliate-links-page .field[type="color"]::-webkit-color-swatch{
-  border:none;
-  border-radius:8px;
-}
-.affiliate-links-page .field[type="color"]::-moz-color-swatch{
-  border:none;
-  border-radius:8px;
-}
+.affiliate-links-page .field[type="color"]::-webkit-color-swatch{ border:none; border-radius:8px; }
+.affiliate-links-page .field[type="color"]::-moz-color-swatch{ border:none; border-radius:8px; }
 
 /* Select */
 .affiliate-links-page .select-wrap{ position:relative; }
@@ -1085,8 +1205,7 @@ $('#save-html').addEventListener('click', ()=>{
   position:absolute;
   right:10px;
   top:50%;
-  width:0;
-  height:0;
+  width:0;height:0;
   pointer-events:none;
   border-left:6px solid transparent;
   border-right:6px solid transparent;
@@ -1101,9 +1220,7 @@ $('#save-html').addEventListener('click', ()=>{
   width:46px;
   height:26px;
 }
-.affiliate-links-page .switch input{
-  display:none;
-}
+.affiliate-links-page .switch input{ display:none; }
 .affiliate-links-page .switch span{
   position:absolute;
   cursor:pointer;
@@ -1125,31 +1242,30 @@ $('#save-html').addEventListener('click', ()=>{
   box-shadow:0 2px 4px rgba(15,23,42,.18);
   transition:.2s;
 }
-.affiliate-links-page .switch input:checked + span{
-  background:#22c55e;
-}
-.affiliate-links-page .switch input:checked + span:before{
-  transform:translate(18px,-50%);
-}
+.affiliate-links-page .switch input:checked + span{ background:#22c55e; }
+.affiliate-links-page .switch input:checked + span:before{ transform:translate(18px,-50%); }
 
-/* Preview */
-.affiliate-links-page .preview-card{
-  display:flex;
-  flex-direction:column;
-}
+/* Preview (zoom sem “encavalar” e sem estourar a lateral) */
+.affiliate-links-page .preview-card{ display:flex; flex-direction:column; }
 .affiliate-links-page .preview-wrap{
   --zoom: .9;
   width:100%;
-  overflow:hidden;
+  overflow:auto;
+  border-radius:16px;
+  -webkit-overflow-scrolling:touch;
+}
+.affiliate-links-page .canvas-stage{
+  width:100%;
 }
 .affiliate-links-page .preview-wrap canvas{
   display:block;
-  width: calc(var(--zoom) * 100%);
-  max-width:100%;
+  width:100%;
   height:auto;
   border-radius:16px;
   border:1px solid #e2e8f0;
   background:transparent;
+  transform:scale(var(--zoom));
+  transform-origin:top left;
 }
 
 /* Ações */
@@ -1161,15 +1277,7 @@ $('#save-html').addEventListener('click', ()=>{
 
 /* Mobile tweaks */
 @media (max-width: 720px){
-  .affiliate-links-page .glass-card{
-    padding:14px;
-  }
-  .affiliate-links-page .ref-input{
-    flex-wrap:wrap;
-  }
-  .affiliate-links-page .ref-input .btn{
-    flex:1 1 160px;
-    text-align:center;
-  }
+  .affiliate-links-page .glass-card{ padding:14px; }
+  .affiliate-links-page .ref-input .btn{ flex:1 1 160px; text-align:center; }
 }
 </style>

@@ -206,17 +206,31 @@ function renderPlansComboHTML(b){
     </div>
   `;
 }
+
+/* FIX: no single combo, pegar o RADIO marcado (antes pegava o primeiro) */
 function updateComboSummary(combo){
   const isSingle = combo.hasAttribute('data-single');
   const list = combo.querySelector('.combo-list');
+  if (!list) return;
+
   if (isSingle){
-    const sel = list.querySelector('input[type="radio"]');
+    const sel =
+      list.querySelector('input[type="radio"]:checked') ||
+      list.querySelector('input[type="radio"]');
     if (!sel) return;
-    const label = sel.closest('label').querySelector('span').textContent;
-    const val   = sel.value;
+
+    const label =
+      sel.closest('label')?.querySelector('span')?.textContent ||
+      sel.value;
+
+    const val = sel.value;
+
     combo.querySelector('.combo-label').textContent = label;
+
+    // suporta tanto combos gerados (data-f) quanto os fixos do form (#b-type / #b-active)
     const hiddenDF  = combo.querySelector('input[data-f]');
     const hiddenAny = combo.querySelector('input[type="hidden"]');
+
     if (hiddenDF)  hiddenDF.value  = val;
     if (hiddenAny) hiddenAny.value = val;
   } else {

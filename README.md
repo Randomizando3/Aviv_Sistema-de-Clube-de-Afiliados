@@ -1,9 +1,9 @@
 # Aviv Sistema de Clube de Afiliados
 
 ## English
-Aviv Sistema de Clube de Afiliados is a PHP web application for managing an affiliate club platform with separate areas for admins, partners, affiliates, and members.
+PHP web application for managing an affiliate club platform with dedicated areas for admins, partners, affiliates, and members.
 
-### Stack observed in the repository
+### Stack observed
 - PHP 8.2+
 - Composer
 - MySQL or MariaDB
@@ -12,23 +12,22 @@ Aviv Sistema de Clube de Afiliados is a PHP web application for managing an affi
 - Docker support for local environments
 
 ### Main structure
-- `app/controllers`: application controllers and API endpoints
-- `app/views`: views for `admin`, `affiliate`, `partner`, `member`, and public pages
+- `app/controllers`: controllers and API endpoints
+- `app/views`: admin, affiliate, partner, member, and public views
 - `app/services`: business logic and support services
-- `migrations`: database schema and feature migrations
+- `migrations`: database and feature migrations
 - `public`: web entry point
-- `storage`: generated files, logs, and temporary data
 
 ### Local setup
 1. Install dependencies with Composer.
-2. Configure database access in your local environment.
+2. Configure database access locally.
 3. Run the required migrations.
-4. Point the web server to the `public` directory.
+4. Point the web server to `public`.
 
-## PortuguÃªs
-Aviv Sistema de Clube de Afiliados Ã© uma aplicaÃ§Ã£o web em PHP para gerenciar uma plataforma de clube de afiliados com Ã¡reas separadas para administradores, parceiros, afiliados e membros.
+## Português
+Aplicação web em PHP para gerenciar uma plataforma de clube de afiliados com áreas dedicadas para administradores, parceiros, afiliados e membros.
 
-### Stack observada no repositÃ³rio
+### Stack observada
 - PHP 8.2+
 - Composer
 - MySQL ou MariaDB
@@ -37,15 +36,14 @@ Aviv Sistema de Clube de Afiliados Ã© uma aplicaÃ§Ã£o web em PHP para gere
 - Suporte a Docker para ambiente local
 
 ### Estrutura principal
-- `app/controllers`: controladores da aplicaÃ§Ã£o e endpoints de API
-- `app/views`: views para `admin`, `affiliate`, `partner`, `member` e pÃ¡ginas pÃºblicas
-- `app/services`: lÃ³gica de negÃ³cio e serviÃ§os de apoio
-- `migrations`: schema do banco e migraÃ§Ãµes de funcionalidades
+- `app/controllers`: controladores e endpoints de API
+- `app/views`: views de admin, affiliate, partner, member e páginas públicas
+- `app/services`: lógica de negócio e serviços de apoio
+- `migrations`: migrações de banco e funcionalidades
 - `public`: ponto de entrada web
-- `storage`: arquivos gerados, logs e dados temporÃ¡rios
 
-### ConfiguraÃ§Ã£o local
-1. Instale as dependÃªncias com Composer.
-2. Configure o acesso ao banco no seu ambiente local.
-3. Execute as migraÃ§Ãµes necessÃ¡rias.
-4. Aponte o servidor web para a pasta `public`.
+### Configuração local
+1. Instale as dependências com Composer.
+2. Configure o acesso ao banco localmente.
+3. Execute as migrações necessárias.
+4. Aponte o servidor web para `public`.
